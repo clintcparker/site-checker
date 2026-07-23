@@ -251,7 +251,7 @@ mod tests {
             !outcome.used_get_fallback,
             "already persisted; nothing new to write"
         );
-        head_mock.assert_hits_async(0).await;
+        head_mock.assert_calls_async(0).await;
     }
 
     #[tokio::test]
