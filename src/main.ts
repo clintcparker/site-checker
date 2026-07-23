@@ -7,6 +7,7 @@ import {
   type StatusEvent,
 } from "./api";
 import { renderTable, type Row } from "./render";
+import { mountForm } from "./form";
 
 const sites = new Map<string, Site>();
 const statuses = new Map<string, StatusEvent>();
@@ -47,6 +48,12 @@ export function removeSite(id: string): void {
 async function main(): Promise<void> {
   for (const site of await listSites()) sites.set(site.id, site);
   repaint();
+
+  mountForm({
+    onSaved: upsertSite,
+    onDeleted: removeSite,
+    lookup: (id) => sites.get(id),
+  });
 
   const startupWarning = await getWarning();
   if (startupWarning) showBanner(startupWarning);

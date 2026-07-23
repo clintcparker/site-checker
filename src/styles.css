@@ -104,3 +104,41 @@ footer {
   margin-top: auto;
   padding-top: 16px;
 }
+
+.site-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding-top: 16px;
+}
+
+.site-form input[type="text"] {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.site-form input[type="number"] {
+  width: 72px;
+}
+
+.site-form input,
+.site-form button {
+  font: inherit;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid rgb(128 128 128 / 0.4);
+  background: transparent;
+  color: inherit;
+}
+
+.site-form button {
+  cursor: pointer;
+}
+
+.form-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: #c0392b;
+  font-size: 12px;
+}
