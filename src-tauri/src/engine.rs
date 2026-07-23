@@ -47,15 +47,20 @@ impl Engine {
     /// Spawn the recurring check for one site. Replaces any task already
     /// running for that id.
     pub fn start(&self, site: Site) {
-        self.stop(&site.id);
-
         let inner = Arc::clone(&self.inner);
         let id = site.id.clone();
+
+        // One critical section: a concurrent start for the same id cannot
+        // slip between the abort and the insert and leave an untracked task
+        // running forever.
+        let mut tasks = self.inner.tasks.lock().unwrap();
+        if let Some(handle) = tasks.remove(&id) {
+            handle.abort();
+        }
         let handle = tauri::async_runtime::spawn(async move {
             inner.run_site(site).await;
         });
-
-        self.inner.tasks.lock().unwrap().insert(id, handle);
+        tasks.insert(id, handle);
     }
 
     /// Aborts the task. A check already in flight may still emit one last
