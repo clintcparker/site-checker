@@ -1,22 +1,65 @@
-import { invoke } from "@tauri-apps/api/core";
+import {
+  getWarning,
+  listSites,
+  onSiteStatus,
+  onStoreWarning,
+  type Site,
+  type StatusEvent,
+} from "./api";
+import { renderTable, type Row } from "./render";
 
-let greetInputEl: HTMLInputElement | null;
-let greetMsgEl: HTMLElement | null;
+const sites = new Map<string, Site>();
+const statuses = new Map<string, StatusEvent>();
 
-async function greet() {
-  if (greetMsgEl && greetInputEl) {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsgEl.textContent = await invoke("greet", {
-      name: greetInputEl.value,
-    });
-  }
+const tbody = document.querySelector<HTMLElement>("#rows")!;
+const empty = document.querySelector<HTMLElement>("#empty")!;
+const banner = document.querySelector<HTMLElement>("#banner")!;
+
+export function currentRows(): Row[] {
+  return [...sites.values()].map((site) => ({
+    site,
+    status: statuses.get(site.id) ?? null,
+  }));
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-  greetInputEl = document.querySelector("#greet-input");
-  greetMsgEl = document.querySelector("#greet-msg");
-  document.querySelector("#greet-form")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    greet();
+export function repaint(): void {
+  const rows = currentRows();
+  renderTable(tbody, rows, Date.now());
+  empty.hidden = rows.length > 0;
+}
+
+export function showBanner(message: string): void {
+  banner.textContent = message;
+  banner.hidden = false;
+}
+
+export function upsertSite(site: Site): void {
+  sites.set(site.id, site);
+  repaint();
+}
+
+export function removeSite(id: string): void {
+  sites.delete(id);
+  statuses.delete(id);
+  repaint();
+}
+
+async function main(): Promise<void> {
+  for (const site of await listSites()) sites.set(site.id, site);
+  repaint();
+
+  const startupWarning = await getWarning();
+  if (startupWarning) showBanner(startupWarning);
+
+  await onSiteStatus((event) => {
+    statuses.set(event.id, event);
+    repaint();
   });
-});
+  await onStoreWarning(showBanner);
+
+  // The "time since" column ticks locally. It counts from the last completed
+  // check, so this needs no backend chatter.
+  setInterval(repaint, 1000);
+}
+
+main();
