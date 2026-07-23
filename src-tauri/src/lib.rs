@@ -1,3 +1,4 @@
+mod check;
 mod model;
 mod store;
 
