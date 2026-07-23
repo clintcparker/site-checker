@@ -2,8 +2,6 @@ use serde::{Deserialize, Serialize};
 
 /// Lowest interval we will ever schedule. Guardrail against hammering an endpoint.
 pub const MIN_INTERVAL_SECS: u64 = 10;
-/// What a new site gets when the user does not say otherwise.
-pub const DEFAULT_INTERVAL_SECS: u64 = 60;
 
 /// The only method we ever persist. HEAD is the default and needs no override;
 /// this is written only once a server has told us HEAD is unwelcome.
