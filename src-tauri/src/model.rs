@@ -44,6 +44,18 @@ pub struct StatusEvent {
     pub reason: Option<String>,
 }
 
+/// True only for a `scheme://` prefix at the very start. A bare
+/// `contains("://")` also matches a `://` inside a query string, which would
+/// stop a scheme-less URL from getting one.
+fn has_leading_scheme(s: &str) -> bool {
+    match s.find("://") {
+        Some(0) | None => false,
+        Some(i) => s[..i]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.')),
+    }
+}
+
 /// Validate user input and add a scheme if one is missing.
 ///
 /// Returns the user's own text (trimmed, scheme-prefixed) rather than the
@@ -55,7 +67,7 @@ pub fn normalize_url(input: &str) -> Result<String, String> {
         return Err("Enter a URL".to_string());
     }
 
-    let candidate = if trimmed.contains("://") {
+    let candidate = if has_leading_scheme(trimmed) {
         trimmed.to_string()
     } else {
         format!("https://{trimmed}")
@@ -116,6 +128,14 @@ mod tests {
     fn rejects_non_http_schemes() {
         assert!(normalize_url("ftp://example.com").is_err());
         assert!(normalize_url("file:///etc/hosts").is_err());
+    }
+
+    #[test]
+    fn adds_a_scheme_when_the_query_contains_a_url() {
+        assert_eq!(
+            normalize_url("example.com?next=http://x.dev").unwrap(),
+            "https://example.com?next=http://x.dev"
+        );
     }
 
     #[test]
