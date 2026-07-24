@@ -121,3 +121,24 @@ pub fn delete_site(
     warn_on_write_failure(&app, write);
     Ok(())
 }
+
+use tauri_plugin_autostart::ManagerExt;
+
+#[tauri::command]
+pub fn get_autostart(app: tauri::AppHandle) -> Result<bool, String> {
+    app.autolaunch().is_enabled().map_err(|e| e.to_string())
+}
+
+/// Returns the state actually in effect afterwards, so the checkbox can
+/// correct itself if the OS refused the change.
+#[tauri::command]
+pub fn set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
+    let manager = app.autolaunch();
+    let result = if enabled {
+        manager.enable()
+    } else {
+        manager.disable()
+    };
+    result.map_err(|e| e.to_string())?;
+    manager.is_enabled().map_err(|e| e.to_string())
+}

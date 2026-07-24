@@ -62,3 +62,11 @@ export function onStoreWarning(
     handler(e.payload.message),
   );
 }
+
+export function getAutostart(): Promise<boolean> {
+  return invoke("get_autostart");
+}
+
+export function setAutostart(enabled: boolean): Promise<boolean> {
+  return invoke("set_autostart", { enabled });
+}

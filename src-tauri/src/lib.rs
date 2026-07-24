@@ -7,6 +7,7 @@ mod store;
 use std::sync::{Arc, Mutex};
 
 use tauri::Manager;
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 use commands::AppState;
 use engine::Engine;
@@ -14,6 +15,10 @@ use engine::Engine;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec![]),
+        ))
         .setup(|app| {
             // ~/Library/Application Support/com.clintparker.site-checker/
             let path = app.path().app_config_dir()?.join("sites.json");
@@ -31,6 +36,18 @@ pub fn run() {
                 warning: Mutex::new(loaded.warning),
             });
 
+            // On by default, registered once. A marker file distinguishes
+            // "first run" from "the user deliberately turned this off", so
+            // unchecking the box sticks across restarts.
+            let marker = app.path().app_config_dir()?.join("autostart.initialized");
+            if !marker.exists() {
+                let _ = app.autolaunch().enable();
+                if let Some(parent) = marker.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                let _ = std::fs::write(&marker, b"");
+            }
+
             Ok(())
         })
         // Closing the window quits the app. Without this, macOS keeps the
@@ -46,6 +63,8 @@ pub fn run() {
             commands::add_site,
             commands::update_site,
             commands::delete_site,
+            commands::get_autostart,
+            commands::set_autostart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

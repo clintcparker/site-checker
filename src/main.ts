@@ -1,8 +1,10 @@
 import {
+  getAutostart,
   getWarning,
   listSites,
   onSiteStatus,
   onStoreWarning,
+  setAutostart,
   type Site,
   type StatusEvent,
 } from "./api";
@@ -45,6 +47,28 @@ export function removeSite(id: string): void {
   repaint();
 }
 
+async function mountAutostart(): Promise<void> {
+  const checkbox = document.querySelector<HTMLInputElement>("#autostart")!;
+
+  try {
+    checkbox.checked = await getAutostart();
+  } catch (message) {
+    showBanner(`Could not read the login item: ${String(message)}`);
+    checkbox.disabled = true;
+    return;
+  }
+
+  checkbox.addEventListener("change", async () => {
+    try {
+      // Trust what the OS reports rather than what was clicked.
+      checkbox.checked = await setAutostart(checkbox.checked);
+    } catch (message) {
+      checkbox.checked = !checkbox.checked;
+      showBanner(`Could not change the login item: ${String(message)}`);
+    }
+  });
+}
+
 async function main(): Promise<void> {
   for (const site of await listSites()) sites.set(site.id, site);
   repaint();
@@ -54,6 +78,8 @@ async function main(): Promise<void> {
     onDeleted: removeSite,
     lookup: (id) => sites.get(id),
   });
+
+  await mountAutostart();
 
   const startupWarning = await getWarning();
   if (startupWarning) showBanner(startupWarning);

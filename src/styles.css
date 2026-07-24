@@ -142,3 +142,12 @@ footer {
   color: #c0392b;
   font-size: 12px;
 }
+
+.setting {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  opacity: 0.7;
+  cursor: pointer;
+}
