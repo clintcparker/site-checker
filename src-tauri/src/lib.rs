@@ -30,23 +30,35 @@ pub fn run() {
             let sites = store.lock().unwrap().list();
             engine.start_all(sites);
 
-            app.manage(AppState {
-                store,
-                engine,
-                warning: Mutex::new(loaded.warning),
-            });
+            let mut warning = loaded.warning;
 
             // On by default, registered once. A marker file distinguishes
             // "first run" from "the user deliberately turned this off", so
             // unchecking the box sticks across restarts.
             let marker = app.path().app_config_dir()?.join("autostart.initialized");
             if !marker.exists() {
-                let _ = app.autolaunch().enable();
+                if let Err(e) = app.autolaunch().enable() {
+                    // Store-load warning takes precedence if one already
+                    // occurred; don't clobber it with the less-critical
+                    // autostart message.
+                    warning.get_or_insert_with(|| format!(
+                        "Could not turn on Launch at login ({e}). Tick the box below to try again."
+                    ));
+                }
+                // The marker is written whether or not enable() succeeded,
+                // so a later deliberate untick is never re-enabled on the
+                // next launch.
                 if let Some(parent) = marker.parent() {
                     let _ = std::fs::create_dir_all(parent);
                 }
                 let _ = std::fs::write(&marker, b"");
             }
+
+            app.manage(AppState {
+                store,
+                engine,
+                warning: Mutex::new(warning),
+            });
 
             Ok(())
         })
