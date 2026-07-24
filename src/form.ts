@@ -96,7 +96,13 @@ export function mountForm(hooks: FormHooks): void {
     }
 
     if (button.dataset.action === "delete") {
-      await deleteSite(id);
+      try {
+        await deleteSite(id);
+      } catch (message) {
+        // Rust `Err(String)` arrives here as the bare string.
+        showError(String(message));
+        return;
+      }
       hooks.onDeleted(id);
       if (idField.value === id) resetToAddMode();
     }
