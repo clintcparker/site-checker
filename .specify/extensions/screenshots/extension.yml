@@ -1,0 +1,27 @@
+schema_version: "1.0"
+
+extension:
+  id: "screenshots"
+  name: "UI Screenshots"
+  version: "0.1.0"
+  description: "Captures before/after UI screenshots for a feature and stages them on the branch for embedding in the pull request"
+  author: "clintcparker"
+  license: "MIT"
+
+requires:
+  speckit_version: ">=0.1.0"
+
+provides:
+  commands:
+    - name: "speckit.screenshots.capture"
+      file: "commands/capture.md"
+      description: "Capture 'before' or 'after' screenshots of the pages a feature touches"
+
+# No hooks on purpose: this command is invoked explicitly by workflows that want it
+# (send-it adds it as two steps around implement). Registering an after_tasks /
+# after_implement hook here would make every spec-kit flow pay the screenshot cost.
+
+tags:
+  - "process"
+  - "qa"
+  - "automation"
