@@ -56,8 +56,8 @@ The app reads `~/Library/Application Support/com.clintparker.site-checker/sites.
 - A fresh worktree has no `node_modules`: run `pnpm install` first if it is missing.
 - Start `pnpm tauri dev` in the background, capturing stdout+stderr to a log file **outside the checkout** (the git auto-commit hooks would commit anything inside it). First cold cargo build can take several minutes — allow ~10 min before declaring failure; on failure, dump the log tail and stop with an error (a non-starting app is itself a finding worth reporting).
 - Vite is pinned to port 1420 with `strictPort` — if a stale dev server holds it, kill that process first.
-- The dev window belongs to process `tauri-app` (bundled builds appear as `Site Checker`); its title is `Site Checker`. Poll System Events until it exists:
-  `osascript -e 'tell application "System Events" to get position of window 1 of process "tauri-app"'`
+- The dev window belongs to process `site-checker` (bundled builds appear as `Site Checker`); its title is `Site Checker`. Poll System Events until it exists:
+  `osascript -e 'tell application "System Events" to get position of window 1 of process "site-checker"'`
 - Wait a few seconds after launch so Pending resolves to Up/Down before capturing — unless the feature is about the Pending state itself; use judgment and note the choice in the manifest.
 
 ### 5. Choose target views
@@ -71,7 +71,7 @@ For each view, capture the window at two sizes (the window is resizable, 480×32
 - `default`: 720×480 (the shipped size in `tauri.conf.json`)
 - `narrow`: 480×320 (the floor — layout stress test)
 
-Resize with System Events (`set size of window 1 of process "tauri-app" to {W, H}`), then capture just the window: read `position` and `size` from System Events and run `screencapture -R x,y,w,h <file>` (`-l <windowid>` is fine too if you can get a CGWindowID). Filenames: `<view-slug>-<size>.png` under `before/` or `after/` per mode.
+Resize with System Events (`set size of window 1 of process "site-checker" to {W, H}`), then capture just the window: read `position` and `size` from System Events and run `screencapture -R x,y,w,h <file>` (`-l <windowid>` is fine too if you can get a CGWindowID). Filenames: `<view-slug>-<size>.png` under `before/` or `after/` per mode.
 
 ### 7. Record, commit, clean up
 
@@ -87,7 +87,7 @@ Resize with System Events (`set size of window 1 of process "tauri-app" to {W, H
 }
 ```
 
-- Kill the `pnpm tauri dev` process **tree** (it spawns vite, cargo, and the app — kill the process group, then verify no `tauri-app` process survives).
+- Kill the `pnpm tauri dev` process **tree** (it spawns vite, cargo, and the app — kill the process group, then verify no `site-checker` process survives).
 - Restore the user's data: if `sites.json.shots-backup` exists, move it back over `sites.json`; otherwise delete the seed `sites.json`. Do this in **both** modes, every run, success or failure — the manifest's `seed_sites` is what makes the `after` run reproducible, not leftover state.
 - Commit `FEATURE_DIR/screenshots/` with message `docs: <mode> screenshots for <feature>`. Never commit the data file, dev-server logs, or anything outside `FEATURE_DIR/screenshots/`.
 
