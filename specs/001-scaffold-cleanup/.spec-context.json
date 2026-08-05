@@ -1,0 +1,16 @@
+{
+  "workflow": "speckit",
+  "specName": "Scaffold Cleanup",
+  "branch": "main",
+  "currentStep": "tasks",
+  "status": "ready-to-implement",
+  "history": [
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-08-05T22:49:03.151Z"
+    }
+  ]
+}
