@@ -43,7 +43,7 @@ pub fn load(path: PathBuf) -> LoadOutcome {
         Err(e) => LoadOutcome {
             store: Store { path, sites: Vec::new() },
             warning: Some(format!(
-                "sites.json could not be read ({e}). Starting with an empty list; \
+                "sites.json is not valid JSON ({e}). Starting with an empty list; \
                  the existing file has been left alone."
             )),
         },
