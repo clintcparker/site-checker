@@ -42,7 +42,8 @@ pub struct StatusEvent {
     pub reason: Option<String>,
 }
 
-/// True only for a `scheme://` prefix at the very start. A bare
+/// True only for a `scheme://` prefix at the very start, where every character
+/// before the `://` is ASCII alphanumeric or one of `+`, `-`, `.`. A bare
 /// `contains("://")` also matches a `://` inside a query string, which would
 /// stop a scheme-less URL from getting one.
 fn has_leading_scheme(s: &str) -> bool {

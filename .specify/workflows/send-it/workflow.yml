@@ -1,0 +1,145 @@
+schema_version: "1.0"
+workflow:
+  id: "send-it"
+  name: "Spec to PR, unattended"
+  version: "0.2.0"
+  author: "clintcparker"
+  description: "specify → plan → tasks → screenshots → implement → screenshots → ship; no gates, ends in an open PR with before/after UI screenshots"
+
+requires:
+  # Same floor as yolo: 0.8.12 is the first release with engine-side resolution
+  # of ``integration: "auto"`` (spec-kit #2421). Older versions treat "auto" as
+  # a literal integration key and fail at dispatch.
+  speckit_version: ">=0.8.12"
+  integrations:
+    # Advisory compatibility hint, not a closed set -- see workflows/yolo.
+    any:
+      - "claude"
+
+inputs:
+  spec:
+    type: string
+    required: true
+    prompt: "Describe what you want to build"
+  integration:
+    type: string
+    default: "auto"
+    prompt: "Integration to use (e.g. claude, copilot, gemini; 'auto' uses the project's initialized integration)"
+  target_branch:
+    type: string
+    default: "main"
+    prompt: "Branch the pull request should target"
+
+steps:
+  # The before_specify hook (speckit.worktrees.create) creates the feature branch
+  # inside a new worktree and moves the session into it, leaving the primary checkout
+  # untouched on its current branch. Every step below therefore runs *in the worktree*
+  # — they are the same agent session, so the working directory carries forward. Do
+  # not add a step that assumes the primary checkout is on the feature branch.
+  - id: specify
+    command: speckit.specify
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.spec }}"
+
+  - id: plan
+    command: speckit.plan
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.spec }}"
+
+  - id: tasks
+    command: speckit.tasks
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.spec }}"
+
+  # Baseline screenshots MUST run before implement: at this point the worktree
+  # differs from the target branch only by spec documents, so the app still
+  # renders exactly what the PR's base commit would. The command self-skips
+  # (writing screenshots/SKIPPED.md) when the spec has no UI surface.
+  # Provided by the local `screenshots` extension (.specify/extensions/screenshots).
+  - id: screenshots-before
+    command: speckit.screenshots.capture
+    integration: "{{ inputs.integration }}"
+    input:
+      args: >-
+        mode: before.
+
+        UNATTENDED RUN — no user is present. Make every judgement call
+        (UI-relevance, which pages, what seed data) yourself and record it in
+        the manifest instead of asking. A failure to build or start the app
+        here means the *base* branch is broken: report it and continue the
+        workflow without baseline screenshots rather than aborting.
+
+  - id: implement
+    command: speckit.implement
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.spec }}"
+
+  - id: screenshots-after
+    command: speckit.screenshots.capture
+    integration: "{{ inputs.integration }}"
+    input:
+      args: >-
+        mode: after.
+
+        UNATTENDED RUN — no user is present. Reuse the manifest written by the
+        before pass (same pages, same viewports, same data dir if it survived)
+        so the pair is comparable. If the app no longer builds or starts, that
+        is an implementation defect: capture nothing, write the failure into
+        the manifest notes, and let the workflow continue so ship can surface
+        it in the pull request instead of silently dropping it.
+
+  # speckit.ship.run is provided by the `ship` extension, not by core Spec Kit.
+  # Its command reads $ARGUMENTS before anything else ("You MUST consider the
+  # user input before proceeding"), which is the designed lever for turning a
+  # safe-by-default interactive command into an unattended one.
+  - id: ship
+    command: speckit.ship.run
+    integration: "{{ inputs.integration }}"
+    input:
+      args: >-
+        Target branch: {{ inputs.target_branch }}.
+
+        UNATTENDED RUN — no user is present and no prompt can be answered.
+        Treat every confirmation this command would normally ask as answered
+        YES and continue without waiting: the readiness summary, the
+        rebase/merge confirmation, the push confirmation, the CHANGELOG
+        prepend confirmation, and the pull request creation confirmation.
+
+        Before the working-tree pre-flight check, commit every uncommitted
+        change with a descriptive conventional-commit message instead of
+        prompting to commit or stash.
+
+        If any tasks in tasks.md are still incomplete, do not stop — proceed
+        and list the incomplete tasks in the pull request description.
+
+        Prefer rebase over merge when synchronizing with the target branch.
+
+        Do not block on CI. If gh is unavailable, if no CI run exists yet for
+        the branch, or if a run is still in progress, proceed and record the
+        CI status in the pull request description rather than waiting. If CI
+        has already failed, still open the pull request and call the failure
+        out prominently in the description.
+
+        The one legitimate stop is a rebase conflict that cannot be resolved
+        trivially: leave the branch as it is for manual resolution and report
+        what happened. Never force-push.
+
+        SCREENSHOTS SECTION — after pushing the branch and before creating the
+        pull request, check FEATURE_DIR/screenshots/. If it contains images,
+        add a "## Screenshots" section to the PR description: one markdown
+        table per captured page with Before and After columns (mobile and
+        desktop rows). This repository is PRIVATE, so raw.githubusercontent.com
+        URLs will NOT render — embed each image as
+        https://github.com/{owner}/{repo}/blob/{head_sha}/{path}?raw=true
+        using the pushed head commit SHA (never the branch name, which dies
+        when the branch is deleted after merge). Get {owner}/{repo} from
+        `gh repo view --json nameWithOwner`. If a side is missing (no baseline,
+        or the after pass recorded a failure in the manifest notes), say so in
+        that table cell and surface any manifest failure notes prominently at
+        the top of the section. If screenshots/SKIPPED.md exists instead, add
+        the single line "No UI changes — screenshots skipped." Verify the
+        screenshot commits are actually part of the pushed head before linking.

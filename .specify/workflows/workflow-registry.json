@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "workflows": {
+    "speckit": {
+      "name": "Full SDD Cycle",
+      "version": "1.0.0",
+      "description": "Runs specify \u2192 plan \u2192 tasks \u2192 implement with review gates",
+      "source": "bundled",
+      "installed_at": "2026-08-05T21:47:06.799548+00:00",
+      "updated_at": "2026-08-05T21:47:06.799550+00:00"
+    },
+    "send-it": {
+      "name": "Spec to PR, unattended",
+      "version": "0.2.0",
+      "description": "specify \u2192 plan \u2192 tasks \u2192 screenshots \u2192 implement \u2192 screenshots \u2192 ship; no gates, ends in an open PR with before/after UI screenshots",
+      "source": "catalog",
+      "catalog_name": "catalog-1",
+      "url": "https://raw.githubusercontent.com/clintcparker/speckit-addons/send-it-v0.1.0/workflows/send-it/workflow.yml",
+      "installed_at": "2026-08-05T21:48:41.701270+00:00",
+      "updated_at": "2026-08-05T21:48:41.701306+00:00"
+    },
+    "yolo": {
+      "name": "Full SDD Cycle - no gates",
+      "version": "0.1.1",
+      "description": "Runs specify \u2192 plan \u2192 tasks \u2192 implement without review gates",
+      "source": "catalog",
+      "catalog_name": "catalog-1",
+      "url": "https://raw.githubusercontent.com/clintcparker/speckit-addons/yolo-v0.1.1/workflows/yolo/workflow.yml",
+      "installed_at": "2026-08-05T21:48:42.055990+00:00",
+      "updated_at": "2026-08-05T21:48:42.056012+00:00"
+    }
+  }
+}

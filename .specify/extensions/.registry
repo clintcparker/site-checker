@@ -1,0 +1,110 @@
+{
+  "schema_version": "1.0",
+  "extensions": {
+    "git": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:89711dec9716473fba4afc54f7224bcb28ebd3c55fb5aaa30df854ab02b07a75",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.git.feature",
+          "speckit.git.validate",
+          "speckit.git.remote",
+          "speckit.git.initialize",
+          "speckit.git.commit"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-05T21:47:22.910136+00:00"
+    },
+    "screenshots": {
+      "version": "0.1.0",
+      "source": "local",
+      "manifest_hash": "sha256:f798a008ce0c2df9763dbc1c4f4c41d6096a21e4f294dd56e508861d53b6a9a7",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.screenshots.capture"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-05T21:47:23.389807+00:00"
+    },
+    "ship": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:7aeaac4af9046a3ac9773fa2ef6c8938beef9cc02d7b8f841e72f388ecbdae69",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.ship.run"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-05T21:47:56.149293+00:00"
+    },
+    "companion": {
+      "version": "0.11.0",
+      "source": "local",
+      "manifest_hash": "sha256:5dbb68ca7625445a205d1db182e9f87d5010142958ca7a59f0748ad3e857afcd",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.companion.capture",
+          "speckit.companion.capture-plan",
+          "speckit.companion.capture-tasks",
+          "speckit.companion.capture-implement",
+          "speckit.companion.status",
+          "speckit.companion.resume",
+          "speckit.companion.specify",
+          "speckit.companion.plan",
+          "speckit.companion.tasks",
+          "speckit.companion.implement",
+          "speckit.companion.classify",
+          "speckit.companion.mark-complete",
+          "speckit.companion.auto"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-05T21:47:58.146185+00:00"
+    },
+    "brownfield": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:671babc47c752bf18868d0aeeef66f0fc4f37c6cf52622cfa07e8715fb5ac4a6",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.brownfield.scan",
+          "speckit.brownfield.bootstrap",
+          "speckit.brownfield.validate",
+          "speckit.brownfield.migrate"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-05T21:47:59.875084+00:00"
+    },
+    "worktrees": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:99fab0dbac58df0b0dad7803f2d2abe070cfe2e84b0c2d23f2cecad184d9708e",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.worktrees.create",
+          "speckit.worktrees.list",
+          "speckit.worktrees.clean"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-05T21:51:31.428129+00:00"
+    }
+  }
+}

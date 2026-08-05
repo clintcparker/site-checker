@@ -1,0 +1,34 @@
+# Worktree Parallel — configuration
+# Copy this file to .specify/extensions/worktrees/worktree-config.yml
+# to override defaults per-repo.
+#
+# create-worktree.sh reads this with `grep -E "^<key>:"`, not a YAML parser. Keys must
+# start at column 0, values must be plain or double-quoted scalars, and everything from
+# " #" onward is stripped as a comment. Nesting or single quotes silently yield the default.
+
+# Layout mode: "sibling" or "nested"
+#   sibling — worktree at ../<repo>--<branch> (default; IDE-friendly, one window per feature)
+#   nested  — worktree at .worktrees/<branch>/ inside the repo (gitignored)
+layout: "sibling"
+
+# Auto-create worktree after /speckit.specify without prompting.
+# Set to false to get a confirmation prompt instead.
+auto_create: true
+
+# Pattern for sibling-dir names. Available placeholders: {{repo}}, {{branch}}.
+sibling_pattern: "{{repo}}--{{branch}}"
+
+# Directory name for nested layout (relative to repo root, auto-gitignored).
+dotworktrees_dir: ".worktrees"
+
+# Base ref new feature branches are cut from. Empty = auto-detect, in order:
+# origin/main → main → origin/master → master → HEAD.
+# Under the worktree-first flow the branch is created by `git worktree add -b` rather
+# than by a checkout in the primary, so this — not the primary's current HEAD —
+# decides what the feature forks from.
+base_ref: ""
+
+# Move the agent session into the new worktree once it exists, so the spec and every
+# later phase (plan/tasks/implement/ship) is written there rather than in the primary
+# checkout. Set to false to just print the path and stay put.
+enter_worktree: true

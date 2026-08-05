@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 docs/
+# Spec Kit runtime state (run logs and catalog cache; config and workflows stay tracked)
+/.specify/workflows/runs/
+/.specify/workflows/.cache/
