@@ -5,7 +5,7 @@ use tauri::State;
 use crate::engine::Engine;
 use crate::lock::{self, SharedStore};
 use crate::model::{clamp_interval, normalize_url, Site};
-use crate::store::AddError;
+use crate::store::{AddError, Replaced};
 
 pub struct AppState {
     pub store: SharedStore,
@@ -92,30 +92,32 @@ pub fn update_site(
     label: Option<String>,
     interval_secs: u64,
 ) -> Result<Site, String> {
+    // A bad URL is rejected before anything else happens, exactly as before.
     let url = normalize_url(&url)?;
 
-    let existing = state
-        .store
-        .lock()
-        .get(&id)
-        .ok_or_else(|| "That site no longer exists".to_string())?;
-
-    // A changed URL invalidates what we learned about HEAD support.
-    let method_override = if existing.url == url {
-        existing.method_override
-    } else {
-        None
+    // One lock, one scope. `Store::replace` reads the current entry, decides the
+    // learned request method from it, writes, and saves under a single borrow —
+    // the decision that used to live here moved there so no second edit can land
+    // between the read and the write.
+    //
+    // The guard is bound to a name inside an explicit scope so it is *provably*
+    // released before `reschedule` below. Left as a `let ... else` temporary it
+    // would live to the end of the statement, holding the store lock across a
+    // scheduling call. Not a deadlock today — but a lock-ordering hazard nobody
+    // should have to re-derive later, and this costs two braces.
+    let replaced = {
+        let mut store = state.store.lock();
+        store.replace(
+            &id,
+            url,
+            empty_to_none(label),
+            clamp_interval(interval_secs),
+        )
     };
 
-    let site = Site {
-        id,
-        url,
-        label: empty_to_none(label),
-        interval_secs: clamp_interval(interval_secs),
-        method_override,
-    };
+    let Replaced { site, write } =
+        replaced.ok_or_else(|| "That site no longer exists".to_string())?;
 
-    let write = state.store.lock().update(site.clone());
     state.store.warn_on_write_failure(write);
 
     // Only this site's timer restarts; every other site is untouched.

@@ -32,6 +32,15 @@ pub enum AddError {
     Write(String),
 }
 
+/// What `Store::replace` hands back when there was an entry to edit.
+pub struct Replaced {
+    /// The entry as it now stands, after the `method_override` rule was applied.
+    pub site: Site,
+    /// Whether the save that followed succeeded. `Err` keeps today's behaviour:
+    /// the in-memory change stands and the banner fires.
+    pub write: Result<(), String>,
+}
+
 pub struct LoadOutcome {
     pub store: Store,
     /// Set when the file existed but could not be read or parsed. The caller
@@ -103,8 +112,65 @@ impl Store {
         self.save().map_err(AddError::Write)
     }
 
+    /// Apply an edit: read the current entry, decide the learned request method
+    /// from it, write the result, and save — all under one `&mut self` borrow.
+    ///
+    /// That single borrow is the guarantee. There is no moment between the read
+    /// and the write for a second edit to interleave into, so FR-013 holds by
+    /// construction rather than by a rule each caller has to remember. The
+    /// negative control in this file's tests reproduces the two-lock shape this
+    /// replaced and asserts that it *does* lose an overlapping edit.
+    ///
+    /// Inputs arrive pre-shaped. `normalize_url`, `clamp_interval`, and
+    /// `empty_to_none` stay in `commands.rs`: they are input shaping, not list
+    /// invariants. The one rule this owns is what happens to `method_override`,
+    /// moved here verbatim from `commands.rs` — the behaviour is unchanged
+    /// (FR-014), only its home is.
+    ///
+    /// `Option<Replaced>` rather than a `Result` because "there was nothing to
+    /// edit" and "the edit happened but did not persist" demand opposite
+    /// responses from the caller: the first must report the site is gone and
+    /// change nothing, the second must keep the row and warn.
+    pub fn replace(
+        &mut self,
+        id: &str,
+        url: String,
+        label: Option<String>,
+        interval_secs: u64,
+    ) -> Option<Replaced> {
+        let site = {
+            let slot = self.sites.iter_mut().find(|s| s.id == id)?;
+
+            // A changed URL invalidates what we learned about HEAD support.
+            let method_override = if slot.url == url {
+                slot.method_override
+            } else {
+                None
+            };
+
+            *slot = Site {
+                id: id.to_string(),
+                url,
+                label,
+                interval_secs,
+                method_override,
+            };
+            slot.clone()
+        };
+
+        Some(Replaced {
+            site,
+            write: self.save(),
+        })
+    }
+
     /// Replace the site with a matching id, preserving list order. A site that
     /// is not present is a no-op, still followed by a save.
+    ///
+    /// Deliberately **not** absorbed into `replace`, and kept for
+    /// `engine::persist_get_fallback`: recording that a site needs GET is a
+    /// legitimate blind write, and giving it the edit rules would mean it had
+    /// opinions about URLs and labels that it has no business having.
     pub fn update(&mut self, site: Site) -> Result<(), String> {
         if let Some(slot) = self.sites.iter_mut().find(|s| s.id == site.id) {
             *slot = site;
@@ -188,7 +254,271 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lock::recover;
     use crate::model::Method;
+    use std::sync::{Arc, Barrier, Mutex};
+
+    /// The address the contention tests start from, and the one the *later* edit
+    /// keeps.
+    const U0: &str = "https://u0.example.com/";
+    /// The address the *earlier* edit repoints the site at.
+    const U1: &str = "https://u1.example.com/";
+
+    /// A site whose request method the app has already learned, at a cost of one
+    /// failed request. That learned value is the thing an overlapping edit can
+    /// throw away, so it is what the contention tests watch.
+    fn a_learned_site() -> Site {
+        Site {
+            id: "one".to_string(),
+            url: U0.to_string(),
+            label: None,
+            interval_secs: 60,
+            method_override: Some(Method::Get),
+        }
+    }
+
+    /// One edit, applied by some implementation. `pause` is that
+    /// implementation's read→write window: whatever another thread does inside
+    /// it is what the implementation is blind to.
+    type Edit = fn(&Arc<Mutex<Store>>, &str, &str, u64, &dyn Fn());
+
+    /// Today's `commands.rs` shape, reproduced: lock and read, **drop the
+    /// guard**, decide `method_override` from what was read, then lock again and
+    /// write. The window is between the two locks, which is the whole problem.
+    ///
+    /// Acquired through `lock::recover` rather than a hand-rolled unrecovered
+    /// lock so `lock.rs`'s source-text guard needs no carve-out for this file.
+    fn edit_the_old_two_lock_way(
+        shared: &Arc<Mutex<Store>>,
+        id: &str,
+        url: &str,
+        interval_secs: u64,
+        pause: &dyn Fn(),
+    ) {
+        let existing = recover(shared).0.get(id).expect("the site must exist");
+
+        pause();
+
+        // A changed URL invalidates what we learned about HEAD support.
+        let method_override = if existing.url == url {
+            existing.method_override
+        } else {
+            None
+        };
+
+        let site = Site {
+            id: id.to_string(),
+            url: url.to_string(),
+            label: existing.label,
+            interval_secs,
+            method_override,
+        };
+        let _ = recover(shared).0.update(site);
+    }
+
+    /// The same edit through `Store::replace`. The window can only go *before*
+    /// the lock, because there is no inside — that absence is the fix, and
+    /// putting `pause` here is the most generous possible placement for it.
+    fn edit_atomically(
+        shared: &Arc<Mutex<Store>>,
+        id: &str,
+        url: &str,
+        interval_secs: u64,
+        pause: &dyn Fn(),
+    ) {
+        pause();
+
+        recover(shared)
+            .0
+            .replace(id, url.to_string(), None, interval_secs)
+            .expect("the site must exist");
+    }
+
+    /// Drive two overlapping edits through `edit` and return the entry left
+    /// behind.
+    ///
+    /// Both tests below call this with the *same* choreography and the *same*
+    /// inputs, differing only in the implementation handed in. That is what
+    /// makes the negative control mean something: the two cannot drift apart,
+    /// because there is only one sequence.
+    ///
+    /// Sequenced with a `Barrier`, never sleeps. The earlier edit runs to
+    /// completion strictly inside the later edit's window, so a stale read is
+    /// deterministic rather than likely:
+    ///
+    /// - the later edit opens its window and waits
+    /// - the earlier edit repoints the site at `U1`, correctly clearing the
+    ///   learned method, and finishes
+    /// - the later edit closes its window and writes `U0`
+    ///
+    /// An implementation that read before the window decides `U0 == U0` and
+    /// carries `Some(Get)` forward. One that reads after it sees `U1`, and must
+    /// clear. Same sequence, opposite answers.
+    fn run_overlapping_edits(edit: Edit) -> Site {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = load(dir.path().join("sites.json")).store;
+        store.add(a_learned_site()).unwrap();
+        let shared = Arc::new(Mutex::new(store));
+        let gate = Arc::new(Barrier::new(2));
+
+        let earlier = {
+            let shared = Arc::clone(&shared);
+            let gate = Arc::clone(&gate);
+            std::thread::spawn(move || {
+                gate.wait();
+                edit(&shared, "one", U1, 60, &|| {});
+                gate.wait();
+            })
+        };
+
+        let gate_for_later = Arc::clone(&gate);
+        edit(&shared, "one", U0, 300, &move || {
+            gate_for_later.wait();
+            gate_for_later.wait();
+        });
+        earlier.join().unwrap();
+
+        // Bound rather than returned directly: as a tail expression the guard
+        // temporary would outlive `shared` itself.
+        let site = recover(&shared).0.get("one").unwrap();
+        site
+    }
+
+    /// **This test asserts the bug, deliberately.**
+    ///
+    /// It is the negative control for `two_overlapping_edits_decide_from_the_current_entry`.
+    /// Without it that test could pass against an implementation which never had
+    /// the race to begin with, and nobody could tell — quickstart §4 says so
+    /// outright: "if it passes both ways it is testing the wrong thing."
+    ///
+    /// If this one ever starts failing, the shape it reproduces is no longer the
+    /// shape `replace` replaced, and its partner has stopped proving anything.
+    #[test]
+    fn the_old_two_lock_shape_would_lose_the_earlier_edit() {
+        let site = run_overlapping_edits(edit_the_old_two_lock_way);
+
+        assert_eq!(site.url, U0, "the later edit's address wins, as it should");
+        assert_eq!(
+            site.method_override,
+            Some(Method::Get),
+            "and it resurrects a learned method decided from a picture the earlier edit had \
+             already replaced — by then the entry said U1, so the method was not the later \
+             edit's to carry forward. This is the bug `replace` removes."
+        );
+    }
+
+    /// The story. Identical choreography to the negative control above —
+    /// literally the same function, the same barrier sequence, the same two
+    /// edits — with `replace` in place of the two-lock shape.
+    ///
+    /// The earlier edit still completes strictly inside the later edit's window.
+    /// The difference is that `replace` has no window between its read and its
+    /// write to be blind to, so the later edit decides from the earlier edit's
+    /// *result* and clears a method that is no longer its to carry.
+    #[test]
+    fn two_overlapping_edits_decide_from_the_current_entry() {
+        let site = run_overlapping_edits(edit_atomically);
+
+        assert_eq!(site.url, U0, "the later edit's address wins");
+        assert_eq!(
+            site.method_override, None,
+            "and the learned method is cleared, because by the time this edit was decided the \
+             entry said U1 — the address did change. Run the identical sequence through the \
+             two-lock shape and it answers Some(Get); that difference is the whole story."
+        );
+    }
+
+    #[test]
+    fn an_unchanged_url_carries_the_learned_method_forward() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = load(dir.path().join("sites.json")).store;
+        store.add(a_learned_site()).unwrap();
+
+        let replaced = store
+            .replace("one", U0.to_string(), Some("renamed".to_string()), 300)
+            .unwrap();
+
+        assert_eq!(
+            replaced.site.method_override,
+            Some(Method::Get),
+            "the address did not change, so the learned method must not be thrown away"
+        );
+        assert_eq!(replaced.site.label.as_deref(), Some("renamed"));
+        assert_eq!(replaced.site.interval_secs, 300);
+    }
+
+    #[test]
+    fn a_changed_url_drops_the_learned_method_so_it_is_relearned() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = load(dir.path().join("sites.json")).store;
+        store.add(a_learned_site()).unwrap();
+
+        let replaced = store.replace("one", U1.to_string(), None, 60).unwrap();
+
+        assert_eq!(
+            replaced.site.method_override, None,
+            "HEAD support is a property of the address, so a new address must be re-probed"
+        );
+    }
+
+    #[test]
+    fn replacing_an_unknown_id_writes_nothing_at_all() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sites.json");
+        let mut store = load(path.clone()).store;
+        store.add(a_learned_site()).unwrap();
+        let before = std::fs::read_to_string(&path).unwrap();
+
+        let outcome = store.replace("nobody", U1.to_string(), None, 60);
+
+        assert!(outcome.is_none(), "an absent id is reported, not invented");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            before,
+            "and no save runs — `update`'s no-op-then-save behaviour is not inherited here"
+        );
+        assert_eq!(
+            file_names(dir.path()),
+            vec!["sites.json"],
+            "so no staging artifact appears either"
+        );
+    }
+
+    #[test]
+    fn replace_preserves_list_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sites.json");
+        let mut store = load(path.clone()).store;
+        store.add(a_learned_site()).unwrap();
+        store.add(a_site("two")).unwrap();
+        store.add(a_site("three")).unwrap();
+
+        store.replace("two", U1.to_string(), None, 120).unwrap();
+
+        let ids: Vec<String> = load(path).store.list().into_iter().map(|s| s.id).collect();
+        assert_eq!(ids, vec!["one", "two", "three"], "an edit is in-place, not a move");
+    }
+
+    #[test]
+    fn a_failed_save_still_leaves_the_edit_standing_in_memory() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sites.json");
+        let mut store = load(path).store;
+        store.add(a_learned_site()).unwrap();
+
+        // Same failure injection as `a_failed_save_leaves_the_previous_file_intact`:
+        // a directory where the staging file wants to be.
+        std::fs::create_dir(dir.path().join("sites.json.tmp")).unwrap();
+
+        let replaced = store.replace("one", U1.to_string(), None, 300).unwrap();
+
+        assert!(replaced.write.is_err(), "the caller must learn the save failed");
+        assert_eq!(
+            store.get("one").unwrap().url,
+            U1,
+            "but the edit stands in memory, so the caller keeps the row and just warns"
+        );
+    }
 
     fn a_site(id: &str) -> Site {
         Site {
