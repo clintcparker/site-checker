@@ -1,0 +1,7 @@
+enabled: true
+exempt: ["*.config.*", "*.test.*", "**/migrations/**"]
+capabilities:
+  - name: backend
+    match: ["src-tauri/src/**"]
+  - name: frontend
+    match: ["src/**", "index.html"]

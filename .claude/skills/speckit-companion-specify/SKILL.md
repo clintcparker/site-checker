@@ -87,6 +87,19 @@ Produce a feature specification: prioritized user stories with acceptance scenar
    python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --step specify --status specifying --kind start --by extension
    ```
 
+**Load living specs — arrive pre-briefed (best-effort, opt-in, read-only).** Before drafting, check whether this project keeps **living specs** for the areas this change touches, and if so fold them into your context so you are not re-learning the codebase from scratch. This whole step is **opt-in by presence** and must **never** fail or slow the command — on any miss (no config, feature off, no resolver, no spec file) skip silently and draft as usual. It is strictly **read-only**: never create or edit a `capabilities/<name>/spec.md` from here.
+
+   - **Record deterministically first — never hand-judge the gate.** Don't decide "is this project configured?" or "which capabilities apply?" yourself; that judgment is exactly what silently skipped the load on real runs. Run the deterministic recorder with the files this change will touch (the surface you've identified for the feature; if none are known yet, skip the load). It re-reads the registry (`living-specs.yml`, or a legacy `livingSpecs` block in `.specify/companion.yml`), gates on `enabled`, runs the resolver, writes the matched capabilities (leaf-first) onto `livingSpecs.loaded`, **and writes the one-line `last_action` audit breadcrumb itself** — so "correctly did nothing" and "capture broke" stay distinguishable without any AI prose:
+     ```bash
+     python3 .specify/extensions/companion/scripts/record-living-specs.py --feature-dir <feature_directory> --changed <in-scope files…>
+     ```
+     This writes only additive `livingSpecs.loaded` + the breadcrumb on `.spec-context.json`; it never touches the lifecycle log. It is a silent no-op that exits 0 when the feature is off, nothing matches, or the registry/resolver can't be read — so it never fails or slows the command; and, exactly like every other capture call here, skip it silently if `python3` or the script is unavailable. This call is the reliable record the later `plan` step and the Overview chips read.
+   - **Then read what it recorded, leaf first.** Read `livingSpecs.loaded` back from `<feature_directory>/.spec-context.json`. If it is empty, there is nothing to load — continue to the spec draft. Otherwise, for each recorded capability (in the recorded order — most-specific first), resolve its spec path and read it into your working context:
+     ```bash
+     python3 .specify/extensions/companion/scripts/resolve-spec-paths.py --changed <in-scope files…> --json
+     ```
+     Read each match's `spec` path (centralized capabilities resolve to `capabilities/<name>/spec.md`; colocated ones carry their own path): the leaf capability is the **primary** frame for this change, a parent capability is the surrounding **context**. Skip any the resolver marked `"exists": false` (or missing on disk); load the rest. These living specs are background you must honor while drafting — they describe how the area already behaves. This reading is best-effort context; the recorder above is the reliable write.
+
 2. Create `<feature_directory>/spec.md` with these sections, in order. Write for a business stakeholder — plain language first, focused on **what** users need and **why**, not **how** to build it. Reserve `inline code` for literal identifiers a reader would copy (real names, routes, keys); never backtick ordinary nouns.
 
    - **User Scenarios & Testing** *(mandatory)* — the heart of the spec. Capture the feature as **prioritized user stories**, each an independently testable slice that delivers value on its own:
@@ -101,6 +114,11 @@ Produce a feature specification: prioritized user stories with acceptance scenar
    - **Success Criteria › Measurable Outcomes** *(mandatory)* — measurable, technology-agnostic `SC-001…` outcomes (time, count, percentage, pass/fail). No framework, API, or database names.
    - **Assumptions** — the informed defaults you chose for anything the description left open.
    - **Verbatim Constraints** *(include only when the request pins exact, must-match values)* — when the user's description gives a **literal identifier or string that the result must match exactly** — a `data-testid`, a route path, an API endpoint/method, a CLI flag, an env var name, a config key, exact UI copy, a column name — record it here **verbatim, in backticks, exactly as written**. These are *requirements the user pinned*, not implementation details you may rephrase, so they are the one place exact identifiers belong in the spec. Do **not** paraphrase, normalize casing, pluralize, or invent a "nicer" name; downstream steps and the implementation MUST use these exact strings. If the request pins none, omit this section.
+
+**Log the requirements as they're born.** The moment the Functional Requirements are written, record each one into the spec's context — one call per requirement, its one-line text as the title — so requirements exist as readable, queryable entries from the first step (tasks and implement fill in coverage later; best-effort, skip silently if `python3` is unavailable):
+```bash
+python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --coverage-req FR-001 --title "<the requirement's one-line text>"
+```
 
 3. Keep it business-readable. Every vague requirement should fail a "testable and unambiguous" check — tighten it. Remove a section that genuinely does not apply rather than leaving it as "N/A". The one exception to "no implementation detail" is **Verbatim Constraints**: an exact value the *user* specified is a requirement, and dropping it (forcing a later step to guess) is a defect.
 4. **Spec quality checklist.** Write `<feature_directory>/checklists/requirements.md` using the template below, then run a **single** self-check pass: grade each item pass/fail, fix obvious fails in `spec.md` in place, and leave any genuine ambiguity as a `[NEEDS CLARIFICATION: …]` marker (max 3) for the `clarify` step. Do **not** run a multi-iteration rewrite loop or prompt the user with option tables — Companion defers interactive clarification to `clarify`. Update the checklist to reflect the final pass/fail state.
@@ -176,6 +194,11 @@ The two constants (5 files / 10 tasks) are the same guardrail the old `complexit
    python3 .specify/extensions/companion/scripts/write-context.py --set size=<simple|normal|oversized>
    ```
    Write `simple` when the change is the small, fast-trackable size; `oversized` when it crossed the guardrail; otherwise `normal`. This only writes a plain `size` field — it never touches the lifecycle log. Best-effort: if `python3` is unavailable, skip without failing the command.
+
+   Also record the classification's **inputs**, not just its verdict, so a later resume can judge whether the call was borderline or clear-cut (same best-effort rule):
+   ```bash
+   python3 .specify/extensions/companion/scripts/write-context.py --classification '{"projectedFiles": <n>, "projectedTasks": <n>, "scopeSignal": "<larger|smaller|none>", "verdict": "<simple|normal|oversized>"}'
+   ```
 6. **Branch on the verdict.**
 
    - **`simple` — minimal mode.** Write **three lean files** in this one pass so the file-driven views (top stepper, sidebar, implement progress) reconcile with the history-driven fold — never a single combined `spec.md`:
@@ -190,17 +213,45 @@ The two constants (5 files / 10 tasks) are the same guardrail the old `complexit
 
 **Output**: `<feature_directory>/spec.md` + `<feature_directory>/checklists/requirements.md`. In **simple** mode, `spec.md` additionally carries an **Approach** section, and two lean files are emitted alongside it — `plan.md` (a pointer to that Approach) and `tasks.md` (the real `- [ ] **T001** …` checklist; the task list lives here, not in `spec.md`); in **normal** mode, `spec.md` holds the four sections only and no `plan.md` / `tasks.md` are written here.
 
+**Capture the context (the C of Intent/Context/Expectations).** Record what this run worked *from* — the living specs loaded above (when any), the key files/areas you investigated, and the constraints you honored — one short entry each (best-effort; skip silently if `python3` is unavailable; omit entirely when there is nothing worth recording):
+```bash
+python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --context "living spec: <name>" --context "area: <path or subsystem>" --context "constraint: <rule honored>"
+```
+
+**Capture the goal and the fence.** Before closing the step, persist the spec's distilled intent (one sentence — what this feature is *for*) and each explicit non-goal / out-of-scope item, so a resume or a colliding future spec can read them without re-reading the spec (best-effort; skip silently if `python3` is unavailable):
+```bash
+python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --set intent="<one-line goal>"
+python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --expectation "<out-of-scope item>" --expectation "<another>"
+```
+Omit the `--expectation` call when the spec declares no non-goals — never invent them.
+
+**Capture the approach (simple mode only).** A `simple` run writes the plan inline as the `## Approach` section of `spec.md` and never reaches `plan` (which is where a full run records `--set approach`). So when `verdict == "simple"`, persist that same one-line approach onto `.spec-context.json` so the viewer Overview's APPROACH card reads it (best-effort; skip silently if `python3` is unavailable):
+```bash
+python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --set approach="<one-line summary of the Approach section>"
+```
+
+**Pin the workflow identity.** Record that this spec runs the **Companion** workflow, so the viewer advances it on Companion — not stock — at `plan`, `tasks`, and `implement`. Without this the shared writer defaults `workflow` to `speckit`, and a later footer advance dispatches the stock command. This is a **required deterministic write** (only skip if `python3` is genuinely unavailable), not best-effort:
+```bash
+python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --set workflow=companion
+```
+
 **Record completion.** After `spec.md` is written, close the specify step — the extension stamps the real end (do **not** hand-write an `ai` complete for specify):
 ```bash
 python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --step specify --status specified --kind complete --by extension
 ```
 
-**Fast-path lifecycle fold (simple mode only).** When `verdict == "simple"`, record the folded `plan` and `tasks` steps so the history-driven panels read them as satisfied-by-fast-path — pairing with the lean `plan.md` / `tasks.md` files above, which make the file-driven stepper, sidebar, and implement progress agree — and the spec lands ready for implement. Run these **in order, after** the specify completion above (each call stamps its own real clock — do not hand-write these, and do not run them for a `normal` verdict):
+**Fast-path living-spec load (simple mode only — best-effort, opt-in, read-only).** A `simple` run never reaches `plan`, which is where a full run loads living specs a second time with the touched files known. So if the pre-draft load recorded nothing (the surface wasn't known yet), do that load **now** — the touched files are known post-draft. Read `<feature_directory>/.spec-context.json`: if `livingSpecs.loaded` is already populated, skip this (never re-resolve or duplicate). Otherwise record what applies with the deterministic recorder against the files this change touches — it gates on `enabled`, runs the resolver, and writes the matched capabilities (leaf-first) onto `livingSpecs.loaded` itself, so the fast path can't lose the record to a misjudged "not configured":
 ```bash
-python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --step plan  --kind start    --substep fast-path --by ai
-python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --step plan  --kind complete --substep fast-path --by ai
-python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --step tasks --kind start    --substep fast-path --by ai
-python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --step tasks --kind complete --substep fast-path --status ready-to-implement --by ai
+python3 .specify/extensions/companion/scripts/record-living-specs.py --feature-dir <feature_directory> --changed <files this change touches…>
+```
+You may still read the matched specs into context for drafting (best-effort), but the recorder is the reliable write. Same contract as the load step: any missing config, resolver, or spec file is a silent no-op that never blocks the fold.
+
+**Fast-path lifecycle fold (simple mode only).** When `verdict == "simple"`, record the folded `plan` and `tasks` steps so the history-driven panels read them as satisfied-by-fast-path — pairing with the lean `plan.md` / `tasks.md` files above, which make the file-driven stepper, sidebar, and implement progress agree — and the spec lands ready for implement. These are the step's real lifecycle boundaries, stamped by the extension like every other trusted step (**`--by extension`, step-level, no substep**), so the timing display counts specify, plan, and tasks as measured phases. Run them **in order, after** the specify completion above (each call stamps its own real clock — do not hand-write these, and do not run them for a `normal` verdict):
+```bash
+python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --step plan  --kind start    --by extension
+python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --step plan  --kind complete --by extension
+python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --step tasks --kind start    --by extension
+python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_directory> --step tasks --kind complete --status ready-to-implement --by extension
 ```
 After the fold, the spec sits at the **tasks** step with `status: ready-to-implement`; the developer triggers implement next. Do **not** write a `completed` status — the final completed gate stays a user action.
 
@@ -211,13 +262,13 @@ After the fold, the spec sits at the **tasks** step with `status: ready-to-imple
 These rules apply to every Companion profile command. The extension records lifecycle timing with its own scripts wherever it can; these rules keep anything you append consistent with that and accurate for any dispatcher (terminal, IDE chat, or the GUI). The model is **finish-only**: each task and each substep records a *single* finish event, and its duration is the gap to the previous finish (or the step's start). Never a `start`+`complete` pair for a task or substep — a pair stamped at one instant is what produces `0s` ticks and bursts.
 
 - **Never hand-edit `.spec-context.json`.** Record every finish by **running the writer script**, never by editing the JSON file yourself — a hand-authored edit is what corrupts the file (a duplicated `status` key). The script stamps the real clock, writes atomically, and is idempotent. The commands below are the only way you touch timing.
-- **Self-close — but not specify or implement.** When your own work for **plan, tasks, clarify, or analyze** ends, record the step finish (feature dir from `.specify/feature.json`):
+- **Self-close — clarify and analyze only.** When your own work for **clarify or analyze** ends, record the step finish (feature dir from `.specify/feature.json`):
 
   ```bash
   python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_dir> --step <this step> --finish --by ai
   ```
 
-  `--finish` appends a single step-level complete and touches **nothing else** (it leaves `status`/`currentStep` to the lifecycle hooks). Do NOT self-close **specify** or **implement**: the extension closes those itself (specify from its own command, implement from the end-of-step hook), so an `ai` complete there would duplicate it.
+  `--finish` appends a single step-level complete and touches **nothing else** (it leaves `status`/`currentStep` to the lifecycle hooks). Do NOT self-close **specify, plan, tasks, or implement**: for each of those steps the extension stamps both boundaries (start and complete) itself — specify and implement from their own command bodies, plan and tasks from a body-recorded start plus the after-step hook's completion. A step-level `ai` complete there would land first, and because the completion append is idempotent (first writer wins), it would permanently block the hook's extension-stamped close and leave the step's duration untrusted.
 - **Substeps — one finish each, via the script.** For each substep boundary (plan: `research`, `design`; tasks: `generate`), the moment that substep ends, run:
 
   ```bash
@@ -233,13 +284,13 @@ These rules apply to every Companion profile command. The extension records life
 
   `--append` writes **one line** to `.spec-context.events.jsonl` and does **not** read or rewrite the shared `.spec-context.json`, so it never hits the "read the file first" retry and **parallel workers can each append their own finish at the same time without contending** — the line carries its own real timestamp (`date -u` is stamped by the script). The `--did`/`--files` flags ride along so the Activity panel's Tasks card is populated from the script. **Do NOT hand-edit the `- [ ]` checkbox in `tasks.md`** — the script owns it: materialize flips it to `- [x]` from your appended finish, so a fanned-out subagent only appends and never touches the shared `tasks.md`. Do NOT hand-author per-task JSON and do NOT write a per-task `start`.
 
-  Then **fold the appended lines into `.spec-context.json`** — run this once per wave (after the wave reconciles) and again when the step ends:
+  Then **fold the appended lines into `.spec-context.json` — per task, the moment each finish lands.** The fold is the second half of the task's closing action, run by the **MAIN agent only**, in the foreground, one task at a time — for your own task right after its append, and for a fanned-out worker's task the moment its result returns:
 
   ```bash
   python3 .specify/extensions/companion/scripts/write-context.py --feature-dir <feature_dir> --materialize
   ```
 
-  `--materialize` is the one read-modify-write: it folds the finishes into the panel **and checks off the matching `tasks.md` boxes** for every journaled task, idempotently (re-folding never double-counts), so running it per wave keeps the GUI current without re-serializing the work. The end-of-step hook is a backstop that materializes anything you didn't fold and fills any task you didn't journal. What's trustworthy here is the **per-task summary** (`did`/`files`) and the order tasks completed, plus the **step-level** start→complete span, which the scripts stamp exactly. The per-task *timestamps* are best-effort — a single agent logs a task right after building it, so they reflect when you recorded it, not a precisely measured duration; that's fine, the summaries are the point. Still, record each finish **as you go, wave by wave** rather than dumping every task at the very end — a per-wave cadence keeps the panel live and the ordering true.
+  `--materialize` is the one read-modify-write: it folds the finishes into the panel **and checks off the matching `tasks.md` boxes** for every journaled task, idempotently (re-folding never double-counts). The panel only sees folded finishes — the append log is not watched — so folding per task is what makes progress advance task by task instead of jumping in end-of-wave bursts. Workers never run `--materialize` (that would put two writers on the shared file); they only append, and the MAIN agent serializes every fold. Run it once more at each wave join as a backstop, and the end-of-step hook materializes anything left and fills any task you didn't journal. What's trustworthy here is the **per-task summary** (`did`/`files`) and the order tasks completed, plus the **step-level** start→complete span, which the scripts stamp exactly. The per-task *timestamps* are best-effort — they reflect when each finish was recorded, not a precisely measured duration; that's fine, the summaries are the point.
 - **Never write the next step's start.** Only the next command appends the next step's start entry; writing it here makes the viewer render a phantom "Generating <next>…".
 <!-- /speckit-companion:part timing -->
 

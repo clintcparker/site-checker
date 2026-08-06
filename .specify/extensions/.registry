@@ -47,32 +47,6 @@
       "registered_skills": [],
       "installed_at": "2026-08-05T21:47:56.149293+00:00"
     },
-    "companion": {
-      "version": "0.11.0",
-      "source": "local",
-      "manifest_hash": "sha256:5dbb68ca7625445a205d1db182e9f87d5010142958ca7a59f0748ad3e857afcd",
-      "enabled": true,
-      "priority": 10,
-      "registered_commands": {
-        "claude": [
-          "speckit.companion.capture",
-          "speckit.companion.capture-plan",
-          "speckit.companion.capture-tasks",
-          "speckit.companion.capture-implement",
-          "speckit.companion.status",
-          "speckit.companion.resume",
-          "speckit.companion.specify",
-          "speckit.companion.plan",
-          "speckit.companion.tasks",
-          "speckit.companion.implement",
-          "speckit.companion.classify",
-          "speckit.companion.mark-complete",
-          "speckit.companion.auto"
-        ]
-      },
-      "registered_skills": [],
-      "installed_at": "2026-08-05T21:47:58.146185+00:00"
-    },
     "brownfield": {
       "version": "1.0.0",
       "source": "local",
@@ -105,6 +79,37 @@
       },
       "registered_skills": [],
       "installed_at": "2026-08-05T21:51:31.428129+00:00"
+    },
+    "companion": {
+      "version": "0.20.1",
+      "source": "local",
+      "manifest_hash": "sha256:63daca72903a36c35450c900bb0ea3084ac91a19b235bb199dfb0c202a578f07",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.companion.after-specify",
+          "speckit.companion.after-plan",
+          "speckit.companion.after-tasks",
+          "speckit.companion.after-implement",
+          "speckit.companion.status",
+          "speckit.companion.resume",
+          "speckit.companion.specify",
+          "speckit.companion.plan",
+          "speckit.companion.tasks",
+          "speckit.companion.implement",
+          "speckit.companion.classify",
+          "speckit.companion.mark-complete",
+          "speckit.companion.auto",
+          "speckit.companion.living-adopt",
+          "speckit.companion.living-move",
+          "speckit.companion.living-drift",
+          "speckit.companion.living-coverage",
+          "speckit.companion.living-sync"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-06T16:39:13.775733+00:00"
     }
   }
 }
