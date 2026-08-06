@@ -5,7 +5,7 @@
   "baseline_source": {
     "commit": "2ec8788",
     "commit_subject": "docs: spec, plan, and tasks for concurrency & robustness hardening",
-    "why_not_main_tip": "The requested target branch was main, but this feature's three implementation commits (f086cfa, 7ea3e66, 8feb989) are already merged into main — main's tip at 1de1eb0 IS the post-change state. Capturing it and filing it as before/ would have produced images that are pre-change in name only. 2ec8788 is the last commit before the first implementation commit, so it is the true pre-change tree. Judgement call made unattended and recorded here rather than asked.",
+    "why_not_main_tip": "The requested target branch was main, but this feature's three implementation commits (f086cfa, 7ea3e66, 8feb989) are already merged into main — main's tip IS the post-change state. Capturing it and filing it as before/ would have produced images that are pre-change in name only. 2ec8788 is the last commit before the first implementation commit, so it is the true pre-change tree. Judgement call made unattended and recorded here rather than asked.",
     "how": "git worktree add --detach /tmp/sc-baseline 2ec8788, node_modules symlinked from the main checkout (package.json and pnpm-lock.yaml are unchanged between 2ec8788 and main), CARGO_TARGET_DIR pointed at the main checkout's src-tauri/target so only the site-checker crate recompiled. Worktree removed after the run; no repo file outside screenshots/ was touched.",
     "frontend_identity_check": "git diff 2ec8788..main -- src index.html src-tauri/tauri.conf.json is EMPTY, and diff -r on src/ confirms byte identity. The baseline and the implementation share the same frontend exactly; only the five Rust files differ. Any pixel difference between before/ and after/ therefore comes from Rust-produced strings or from capture conditions, never from frontend edits."
   },
@@ -16,7 +16,7 @@
     { "id": "shots-down",  "url": "https://down.invalid", "label": "Never Up", "interval_secs": 60 },
     { "id": "shots-plain", "url": "https://example.org",                       "interval_secs": 60 }
   ],
-  "seed_rationale": "The skill's dependable default (one reachable site, one .invalid that never resolves so Down renders without waiting on a real outage) plus a third unlabelled site, because render.ts shows label-or-URL per row and the feature's evidence is about which rows exist. method_override is omitted deliberately: model.rs marks it #[serde(default)], so the seed parses without it. The before run reused this list verbatim from the manifest, which is what makes the two passes comparable.",
+  "seed_rationale": "The skill's dependable default (one reachable site, one .invalid that never resolves so Down renders without waiting on a real outage) plus a third unlabelled site, because render.ts shows label-or-URL per row and the feature's evidence is about which rows exist. method_override is omitted deliberately: model.rs marks it #[serde(default)], so the seed parses without it. Every run — the before pass and both after passes — used this list verbatim from the manifest, which is what makes them comparable.",
   "views": [
     {
       "slug": "site-list",
@@ -24,36 +24,42 @@
       "how_to_reach": "Launch with the seed above; wait ~10s for Pending to resolve to Up/Down.",
       "captured": ["before/site-list-default.png", "before/site-list-narrow.png", "after/site-list-default.png", "after/site-list-narrow.png"],
       "before_observation": "All three seed rows render with resolved statuses — Example: Up, Never Up: Down, https://example.org: Up. The unlabelled third site falls back to its URL as the row title. At 480x320 the Add button wraps below the input row and the 'Launch at login' footer clips at the window floor. Every one of these traits is already present before the change, which is what makes them pre-existing layout rather than something this feature introduced.",
-      "after_observation": "All three seed rows render with resolved statuses — Example: Up, Never Up: Down, https://example.org: Up. The unlabelled third site falls back to its URL as the row title, unchanged. At 480x320 the Add button wraps below the input row and the 'Launch at login' footer clips at the window floor; that is the pre-existing layout at the minimum size, not something this feature introduced."
+      "after_observation": "Identical in every structural respect: three rows, Example: Up, Never Up: Down, https://example.org: Up, the unlabelled site still falling back to its URL as the row title. At 480x320 the Add button still wraps below the input row and the footer still clips at the window floor — pre-existing minimum-size layout, not a regression. Outside the wall-clock 'LAST CHECKED' text the two captures differ by ~175 pixels out of 345,600 (0.05%), all of it title-glyph antialiasing and two footer-checkbox pixels; see comparison.per_view_breakdown."
     },
     {
       "slug": "add-error",
       "why": "The add form with an error showing in #site-error. FR-010 rewords exactly this message — form.ts:101 renders a Rust Err(String) here — so the baseline pins today's wording and placement.",
-      "how_to_reach": "Type an invalid URL (e.g. 'ftp://example.com') into #site-url and submit. NOTE: the FR-010 duplicate-id refusal itself is NOT reachable by clicking, on either branch — every add mints a fresh id (spec Assumptions). Both passes capture this same invalid-URL error for a like-for-like comparison and rely on the automated tests (T019/T020/T023/T024) for the refusal string itself.",
+      "how_to_reach": "Type an invalid URL ('ftp://example.com') into #site-url and submit. NOTE: the FR-010 duplicate-id refusal itself is NOT reachable by clicking, on either branch — every add mints a fresh id (spec Assumptions). Both passes capture this same invalid-URL error for a like-for-like comparison and rely on the automated tests (T019/T020/T023/T024) for the refusal string itself.",
       "captured": ["before/add-error-default.png", "before/add-error-narrow.png", "after/add-error-default.png", "after/add-error-narrow.png"],
       "before_observation": "Submitting 'ftp://example.com' renders 'Only http and https URLs are supported' in #site-error, the row count stays at three, and sites.json was verified byte-identical (sha1 unchanged) across the refused add. The pre-change code already refuses this input cleanly and already leaves the file alone — so FR-009/FR-012 are confirmed here as no-regressions rather than as new behaviour on the reachable path.",
-      "after_observation": "Submitting 'ftp://example.com' renders 'Only http and https URLs are supported' in #site-error and the row count stays at three — the refused add added no row (FR-009) and left sites.json untouched (FR-012, verified by re-reading the seed file after the submit). This is the reachable-by-clicking rejection path; the duplicate-id refusal string that FR-010 actually rewords remains unreachable from the UI on both branches, exactly as the before pass predicted, and stays covered by the automated tests."
+      "after_observation": "Same string, same placement: 'Only http and https URLs are supported' in #site-error, row count still three. sites.json was re-hashed immediately before and after the submit and was unchanged (14ea8e47ee96bce426d659a7249d764824dc9744 both times), so the refused add added no row (FR-009) and wrote nothing (FR-012). This is the reachable-by-clicking rejection path; the duplicate-id refusal string FR-010 actually rewords stays unreachable from the UI on both branches, exactly as the before pass predicted, and stays covered by the automated tests."
     },
     {
       "slug": "warning-banner",
       "why": "The #banner element visible. FR-004 raises the new poison-recovery warning through this same banner rather than a new mechanism, so the baseline shows the banner the after run must match.",
-      "how_to_reach": "Write an unparseable sites.json (e.g. '{') before launch; the store load failure surfaces in #banner with the empty state below it. Restore the seed afterwards.",
+      "how_to_reach": "Write an unparseable sites.json ('{') before launch; the store load failure surfaces in #banner with the empty state below it. Restore the seed afterwards.",
       "captured": ["before/warning-banner-default.png", "before/warning-banner-narrow.png", "after/warning-banner-default.png", "after/warning-banner-narrow.png"],
-      "before_observation": "The banner reads 'sites.json is not valid JSON (invalid type: map, expected a sequence at line 1 column 0). Starting with an empty list; the existing file has been left alone.' with the empty state below it — the identical string the after pass shows. The banner wraps to three lines at 480x320 and pushes the rest of the layout down without overflow, before the change as well as after.",
-      "after_observation": "The banner reads 'sites.json is not valid JSON (invalid type: map, expected a sequence at line 1 column 0). Starting with an empty list; the existing file has been left alone.' with the empty state below it. This is store.rs's load-failure message, not FR-004's poison-recovery message — the latter needs a genuinely poisoned lock, which no sequence of clicks can produce. What this shot demonstrates is the mechanism FR-004 reuses: the same #banner element, same placement, same styling, so the poison warning will surface here rather than through anything new. The banner wraps to three lines at 480x320 and still pushes the rest of the layout down without overflow."
+      "before_observation": "The banner reads 'sites.json is not valid JSON (invalid type: map, expected a sequence at line 1 column 0). Starting with an empty list; the existing file has been left alone.' with the empty state below it. The banner wraps to three lines at 480x320 and pushes the rest of the layout down without overflow.",
+      "after_observation": "Character-for-character the same banner text, the same empty state below it, the same three-line wrap at 480x320. The narrow pair is bit-for-bit identical (0 differing pixels) and the default pair differs by 4 pixels in the 'Launch at login' checkbox. This is store.rs's load-failure message, not FR-004's poison-recovery message — the latter needs a genuinely poisoned lock, which no sequence of clicks can produce. What the shot demonstrates is the mechanism FR-004 reuses: same #banner element, same placement, same styling, so the poison warning surfaces here rather than through anything new."
     }
   ],
   "comparison": {
-    "method": "Per-pixel RGB comparison of each before/after pair at tolerance 12/255, reporting the count of differing pixels and their bounding box. Run from the same compiled helper used for capture.",
+    "method": "Per-pixel RGB comparison of each before/after pair at tolerance 12/255, from a compiled Swift helper reading the original PNGs. Reported as a total count plus a distribution over 20px row bands and 40px column bands, so each difference can be attributed to a screen region instead of inferred from a bounding box. (An earlier bounding-box-only summary was misleading: a handful of outlying pixels stretched the box across the whole window and made the change look larger than it was.)",
     "results": {
-      "site-list-default":      "0.62% differing, bbox x9..424,y9..460",
-      "site-list-narrow":       "0.18% differing, bbox x22..267,y91..310",
-      "add-error-default":      "0.32% differing, bbox x140..424,y91..244",
-      "add-error-narrow":       "0.25% differing, bbox x101..267,y91..244",
-      "warning-banner-default": "0.00% differing — pixel-identical",
-      "warning-banner-narrow":  "0.00% differing — pixel-identical"
+      "site-list-default":      "449/345600 differing = 0.13%",
+      "site-list-narrow":       "495/153600 differing = 0.32%",
+      "add-error-default":      "487/345600 differing = 0.14%",
+      "add-error-narrow":       "464/153600 differing = 0.30%",
+      "warning-banner-default": "4/345600 differing = 0.001%",
+      "warning-banner-narrow":  "0 differing — bit-for-bit identical"
     },
-    "interpretation": "The two warning-banner pairs are pixel-identical, which is the strongest single piece of evidence in this set: the banner mechanism FR-004 reuses renders byte-for-byte the same before and after. The four non-zero pairs differ only in (a) the 'LAST CHECKED' relative-time text, which is wall-clock dependent and cannot match across two runs taken 90 minutes apart, and (b) on site-list-default only, macOS window-active chrome — the after capture caught the window inactive (grey traffic lights, grey 'Launch at login' checkbox) while the baseline capture had it frontmost, which is what stretches that bbox to y9 and y460. No row, column, control, label, status dot, or error string moved or changed. That is the expected result: plan.md said zero frontend files change, and the frontend_identity_check above proves it independently."
+    "per_view_breakdown": {
+      "window title glyphs (y0-19, x80-199)": "169-172 px in each of the four non-banner pairs, and ZERO in both banner pairs. Cropping and magnifying the region 4x shows the same string 'Site Checker' at the same position in both runs, differing only in antialiasing weight. The banner pairs scoring zero in exactly this region is the control that proves the title itself did not change.",
+      "LAST CHECKED column (x360-399 default / x240-279 narrow, rows y80-199)": "274-322 px. Relative-time text ('38s ago' vs '42s ago'), wall-clock dependent and impossible to match across two runs taken ~30 minutes apart.",
+      "add-error input row + error line (y220-259)": "34 px default, 66 px narrow, add-error pairs only. The text caret sits at a different offset: the before pass clicked into the middle of 'ftp://example.com' so its caret renders mid-string, while this pass appended to the end. Same field contents, same error string, different caret position.",
+      "footer checkbox (y440-479 default / y300-319 narrow, x0-39)": "0-4 px of 'Launch at login' checkbox antialiasing."
+    },
+    "interpretation": "Nothing structural changed. Every differing pixel falls into one of four buckets — title-glyph antialiasing, the wall-clock relative-time text, the text caret's resting position in the add form, and a few checkbox antialiasing pixels — and none of them is content. The strongest single piece of evidence is warning-banner-narrow at 0 differing pixels: the banner mechanism FR-004 reuses renders bit-for-bit identically before and after. No row, column, control, label, status dot, or error string moved or changed. That is the expected result: plan.md said zero frontend files change, and baseline_source.frontend_identity_check proves it independently."
   },
   "ui_relevance": {
     "verdict": "ui-relevant",
@@ -65,50 +71,56 @@
       "app_built": true,
       "app_launched": true,
       "capture_blocked": true,
-      "root_cause": "VS Code tunnel session: CGGetActiveDisplayList returned 0 active displays, /dev/console had no console user, System Events saw 0 windows for every process, and the AX tree was degenerate (AXSize not settable, err -25205). screencapture -R and -l failed outright; full-screen -x returned an all-black image. This is why the manifest previously recorded baseline: unavailable."
-    },
-    "after_run": {
-      "when": "2026-08-06, post-implementation",
-      "app_built": true,
-      "app_launched": true,
-      "cargo_build": "Compiling site-checker v0.1.0; Finished `dev` profile in 4.35s; Running target/debug/site-checker",
-      "capture_blocked": false,
-      "capture_method": "screencapture -x -o -l <CGWindowID>, window id read from CGWindowListCopyWindowInfo via a compiled Swift helper. Every PNG verified non-black pixel-by-pixel.",
-      "resize_method": "System Events 'set size of window 1'.",
-      "windows_observed": [
-        "run 1 (seeded): owner=site-checker name='Site Checker' id=15902 pid=62361 bounds=2200,263,720x480",
-        "run 2 (corrupt store, for the banner view): id=15987 pid=64565 bounds=2200,263,720x480"
-      ]
+      "root_cause": "VS Code tunnel session: CGGetActiveDisplayList returned 0 active displays, /dev/console had no console user, System Events saw 0 windows for every process, and the AX tree was degenerate (AXSize not settable, err -25205). screencapture -R and -l failed outright; full-screen -x returned an all-black image. This is why the manifest once recorded baseline: unavailable."
     },
     "before_run": {
       "when": "2026-08-06 ~14:25-14:35, retroactive baseline pass against 2ec8788",
       "app_built": true,
       "app_launched": true,
-      "cargo_build": "Compiling site-checker v0.1.0 (/private/tmp/sc-baseline/src-tauri); Finished `dev` profile in 9.07s; Running .../target/debug/site-checker. The BASE branch builds and starts cleanly — no build failure, no startup panic, no runtime error across two launches (seeded list, then deliberately corrupt list).",
+      "cargo_build": "Compiling site-checker v0.1.0 (/private/tmp/sc-baseline/src-tauri); Finished `dev` profile in 9.07s. The BASE branch builds and starts cleanly — no build failure, no startup panic, no runtime error across two launches.",
       "capture_blocked": false,
-      "capture_unblocked_evidence": [
-        "CGGetActiveDisplayList reports 1 active display",
-        "stat -f%Su /dev/console returns 'clint'",
-        "AXIsProcessTrusted()=true and kAXSizeAttribute settable (set_err=0, size read back as requested at both 720x480 and 480x320)",
-        "Probe full-screen grab: 5120x1440, 99.97% non-black"
-      ],
-      "capture_method": "screencapture -x -o -l <CGWindowID>. Window id and bounds from CGWindowListCopyWindowInfo via a compiled Swift helper at /tmp/shots-helper (built outside the checkout). Every PNG verified non-black before being kept: 99.95% at 720x480, 99.88% at 480x320.",
-      "resize_method": "Compiled Swift helper, AXUIElementSetAttributeValue(kAXSizeAttribute). osascript could NOT be used for this — System Events returned -25211 'not allowed assistive access' in this session, so unlike the after run the AX helper was required rather than optional. osascript retained Automation, so it was still used to raise the window (set frontmost).",
-      "input_method": "CGEvent click/unicode-keystroke/Return from the same AX-trusted helper, since osascript keystroke was unavailable. All UI interaction ran inside one script that re-asserted frontmost before every event, because other apps steal focus between agent tool calls.",
+      "capture_method": "screencapture -x -o -l <CGWindowID>, window id from CGWindowListCopyWindowInfo via a compiled Swift helper at /tmp/shots-helper. Every PNG verified non-black: 99.95% at 720x480, 99.88% at 480x320.",
+      "resize_method": "Compiled Swift helper, AXUIElementSetAttributeValue(kAXSizeAttribute). osascript could NOT be used — System Events returned -25211 'not allowed assistive access' in that session.",
       "windows_observed": [
-        "run 1 (seeded): owner=site-checker name='Site Checker' id=16297 pid=21054 bounds=2200,263,720x480",
-        "run 2 (corrupt store, for the banner view): id=16323 pid=23162 bounds=2200,263,720x480"
+        "run 1 (seeded): id=16297 pid=21054 bounds=2200,263,720x480",
+        "run 2 (corrupt store): id=16323 pid=23162 bounds=2200,263,720x480"
+      ]
+    },
+    "after_run_superseded": {
+      "when": "2026-08-06 ~13:28, the original post-implementation pass, committed in 74cb8db",
+      "why_superseded": "Those images were captured ~90 minutes before the baseline existed and under different conditions, and one of them (site-list-default) caught the window inactive — grey traffic lights and a grey 'Launch at login' checkbox — which inflated that pair's diff to 0.62% and mixed a capture artifact into the evidence. They have been replaced by the re-run below.",
+      "tree_identity": "git diff 74cb8db..HEAD -- src index.html src-tauri is EMPTY. The superseded and current after/ images were captured from a byte-identical tree, so this re-run changes capture conditions only, never the subject matter."
+    },
+    "after_run": {
+      "when": "2026-08-06 ~14:55-15:12, re-run against main's tip (HEAD = a99ccb8, main = 1de1eb0, differing only by the before-screenshots commit)",
+      "app_built": true,
+      "app_launched": true,
+      "cargo_build": "Compiling site-checker v0.1.0; Finished `dev` profile in 7.38s on the cold launch, 0.50s and 0.45s on the two relaunches. Running target/debug/site-checker. Three launches, no build failure, no startup panic, no runtime error.",
+      "capture_blocked": false,
+      "capture_preflight": [
+        "CGGetActiveDisplayList reports 1 active display",
+        "AXIsProcessTrusted()=true",
+        "stat -f%Su /dev/console returns 'clint'",
+        "Probe full-screen grab: 5120x1440, 99.95% non-black"
+      ],
+      "capture_method": "screencapture -x -o -l <CGWindowID>. Every PNG verified non-black: 99.95% at 720x480, 99.88% at 480x320 — identical ratios to the before pass.",
+      "resize_method": "AXUIElementSetAttributeValue(kAXSizeAttribute), set_err=0 at both sizes.",
+      "which_launch_produced_which_view": "add-error/* came from launch 1 (pid 36461), site-list/* from launch 2 (pid 42871), warning-banner/* from launch 3 (pid 43739). Launches 1 and 2 used the identical three-site seed and launch 3 the deliberately corrupt store, so the pairs remain like-for-like; site-list was re-taken on launch 2 because launch 1's copy had been left in the add-error DOM state and could not be cleared without a restart.",
+      "windows_observed": [
+        "launch 1 (seeded, add-error): id=16352 pid=36461 bounds=2200,263,720x480, later observed moved to 1937,152",
+        "launch 2 (seeded, site-list): id=16444 pid=42871 bounds=2200,263,720x480",
+        "launch 3 (corrupt store, banner): id=16451 pid=43739 bounds=2200,263,720x480"
       ]
     }
   },
   "notes": [
-    "A true before/after pair now exists for all three views. The previous manifest recorded baseline: unavailable and asked for exactly this — 're-run the before pass against the merge-base from a session like this one' — which is what this run did.",
-    "Both branches build and start cleanly. The base branch is NOT broken: 2ec8788 compiled in 9.07s against the shared cargo target dir and launched twice without error, so the unattended-run instruction about reporting a broken base does not apply.",
-    "Feature resolved from .specify/feature.json in the primary checkout, which this time points at the correct feature (specs/20260806-120353-concurrency-hardening).",
-    "add-error-narrow was captured twice: the first attempt lost focus between the resize and the grab, producing inactive window chrome and an unfocused input ring that would not have matched its after counterpart. It was re-captured with the window frontmost and the field focused. Only the second capture was kept.",
-    "The duplicate-id refusal (FR-010) and the poison-recovery warning (FR-004) are still not reachable by clicking on either branch, exactly as the original pass predicted — every add mints a fresh id, and no sequence of clicks poisons a lock. Those two strings remain covered by the automated tests, not by these images.",
-    "The user's real sites.json was moved to sites.json.shots-backup and additionally copied out of tree to /tmp/site-checker-sites-SAFETY-before-run-20260806.json before seeding. It was restored at the end and verified with both sha1 (7150bef89871c83ceb3b9064e67b8ac1e499ee56, unchanged) and a full diff against the safety copy. The dev process tree was launched into its own process group (perl setpgrp) and torn down with kill -TERM/-KILL on the group; no site-checker or vite process survived and port 1420 was confirmed free before the restore.",
-    "The /tmp/sc-baseline worktree was removed and pruned. Nothing outside FEATURE_DIR/screenshots/ was modified in the repo, and no dev-server log or data file was committed.",
-    "tasks.md still has T025 and T040 marked incomplete ('click-through NOT performed'). This run exercised more of them — the app launched, the list loaded, checks ran, an add was attempted and correctly refused, and sites.json came back byte-identical — but delete and edit click-throughs were still not exercised, and this command does not modify feature artifacts other than screenshots/."
+    "This after pass is a RE-RUN that replaces all six images committed in 74cb8db. The reason is capture conditions, not code: the tree is byte-identical between the two passes (see environment.after_run_superseded.tree_identity), but the original set was taken before any baseline existed and one shot caught an inactive window. Re-taking them under the before pass's conditions cut the largest pair diff from 0.62% to 0.13% and made warning-banner-narrow bit-for-bit identical.",
+    "Both branches build and start cleanly. The unattended-run instruction about reporting a broken app does not apply: the app compiled and launched three times in this pass without error, and the base branch compiled and launched twice in the before pass.",
+    "This session's desktop aggressively stole keyboard focus between agent tool calls — Firefox, VS Code and Zoom each took frontmost at different points, and the app window also moved from 2200,263 to 1937,152 partway through. The first attempts at the add-error view failed because of this: synthetic clicks aimed at the window's old coordinates landed elsewhere, and one of them left the URL field reading 'ftp://example.co' after a trailing backspace event arrived out of order and ate the final character. The fix was a new single-process helper (/tmp/seq-helper, built outside the checkout) that re-asserts AXFrontmost immediately before every click, keystroke and capture, and records the frontmost process at the moment of each grab; every kept image was captured with frontmost_at_capture=site-checker. The corrupted field was caught by cropping and magnifying the input 4x rather than trusting the full-size render, and the view was re-shot correctly.",
+    "CAVEAT worth flagging: during the focus-recovery attempts, roughly a dozen synthetic single left-clicks were posted at fixed screen coordinates that — because the app window had moved — may have landed on whatever window was on top at that point, including the user's Zoom and VS Code windows. They were plain single clicks with no drag and no typing, so the risk is low, but it is not zero and is recorded here rather than omitted.",
+    "The duplicate-id refusal (FR-010) and the poison-recovery warning (FR-004) are still not reachable by clicking on either branch — every add mints a fresh id, and no sequence of clicks poisons a lock. Those two strings remain covered by the automated tests, not by these images.",
+    "The user's real sites.json was moved to sites.json.shots-backup and additionally copied out of tree to /tmp/site-checker-sites-SAFETY-after-run-20260806-1455.json before seeding. It was restored at the end and verified three ways: sha1 7150bef89871c83ceb3b9064e67b8ac1e499ee56 (unchanged), a full diff against the safety copy (clean), and confirmation that no .shots-backup file was left behind. Each dev process tree was launched into its own process group (perl setpgrp) and torn down with kill -TERM then -KILL on the group; after every teardown no site-checker, tauri or vite process survived and port 1420 was confirmed free.",
+    "Nothing outside FEATURE_DIR/screenshots/ was modified in the repo. Dev-server logs went to /tmp/tauri-dev-after*.log and the capture helpers to /tmp, both outside the checkout, so neither could be picked up by the git auto-commit hooks.",
+    "tasks.md still has T025 and T040 marked incomplete ('click-through NOT performed'). This run exercised more of them — the app launched three times, the list loaded, checks ran, an add was attempted and correctly refused, and sites.json came back byte-identical — but the delete and edit click-throughs were still not exercised, and this command does not modify feature artifacts other than screenshots/."
   ]
 }
