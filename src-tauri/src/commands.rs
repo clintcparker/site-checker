@@ -5,6 +5,7 @@ use tauri::State;
 use crate::engine::Engine;
 use crate::lock::{self, SharedStore};
 use crate::model::{clamp_interval, normalize_url, Site};
+use crate::store::AddError;
 
 pub struct AppState {
     pub store: SharedStore,
@@ -50,8 +51,34 @@ pub fn add_site(
         method_override: None,
     };
 
-    let write = state.store.lock().add(site.clone());
-    state.store.warn_on_write_failure(write);
+    // The two failures owe the user opposite answers, so this is where they part.
+    //
+    // A refusal means nothing was applied anywhere — no row may appear and no
+    // timer may start, so it returns *above* `engine.start`. It raises no banner
+    // either: the message below is the whole story, and a second "could not be
+    // saved" alongside it would contradict it.
+    //
+    // A write failure keeps every one of today's behaviours: the change stands
+    // in memory, the row appears, checks begin, and the banner says it could not
+    // be saved.
+    // Bound to a `let` so the store guard drops here rather than living on as a
+    // `match` scrutinee temporary — those survive to the end of the match, which
+    // would hold the store lock across the banner emit below. Not a deadlock
+    // today, but the same lock-ordering hazard `update_site` is careful about,
+    // and it costs one line to not have to reason about it.
+    let stored = state.store.lock().add(site.clone());
+
+    match stored {
+        Err(AddError::DuplicateId(_)) => {
+            return Err(
+                "That site was not added — the list already has an entry with the same \
+                 identity. Nothing was changed."
+                    .to_string(),
+            )
+        }
+        Err(AddError::Write(message)) => state.store.warn_on_write_failure(Err(message)),
+        Ok(()) => {}
+    }
 
     state.engine.start(site.clone());
     Ok(site)

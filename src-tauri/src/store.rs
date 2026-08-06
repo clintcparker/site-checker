@@ -8,6 +8,30 @@ pub struct Store {
     sites: Vec<Site>,
 }
 
+/// Why an `add` did not happen.
+///
+/// Two variants rather than one string because they carry **opposite** promises
+/// to the caller, and the shell has to answer them differently: one keeps the
+/// user's row and warns, the other must not show a row at all.
+#[derive(Debug)]
+pub enum AddError {
+    /// The list already holds this id. **Nothing was applied** — not in memory,
+    /// not on disk. The two still agree.
+    ///
+    /// The payload names the clashing id. `add_site` — the only caller today —
+    /// deliberately does not surface it: the user gets the plain FR-010 wording,
+    /// not an internal UUID. It is kept, and the `allow` is scoped to the field
+    /// rather than dropped, because this branch exists for the non-UI caller that
+    /// does not exist yet (an importer, a restore path), and "something was
+    /// refused" is not a useful thing to hand one. The test
+    /// `a_refused_add_changes_neither_the_list_nor_the_file` asserts on it, so it
+    /// is pinned rather than merely retained.
+    DuplicateId(#[allow(dead_code)] String),
+    /// The site **is** in the in-memory list; the save failed. The payload is
+    /// the message the banner shows.
+    Write(String),
+}
+
 pub struct LoadOutcome {
     pub store: Store,
     /// Set when the file existed but could not be read or parsed. The caller
@@ -64,22 +88,19 @@ impl Store {
     /// mutated, so a refusal leaves the in-memory list and the file agreeing —
     /// pushing first and unwinding on failure would not.
     ///
-    /// Note the seam this opens for callers, because it is not obvious from
-    /// either side: `warn_on_write_failure` in `commands.rs` documents its `Err`
-    /// channel as "the in-memory change stands and the UI shows a banner",
-    /// which holds for a failed disk write but not for this branch, where
-    /// nothing was applied at all. That is the safer direction — nothing
-    /// persisted and nothing in memory — and the branch is unreachable while
-    /// `add_site` mints a fresh v4 UUID for every site. It exists so the
-    /// invariant lives at the layer that owns it rather than being a property
-    /// of one caller's id generator, which an importer or restore path would
-    /// reopen.
-    pub fn add(&mut self, site: Site) -> Result<(), String> {
+    /// The two failure modes are the `AddError` variants, and their doc comments
+    /// are the contract. This used to be a paragraph here, because there was no
+    /// type to say it with; the part about what the *caller* then owes the user
+    /// lives with the caller, in `commands.rs`.
+    pub fn add(&mut self, site: Site) -> Result<(), AddError> {
         if self.sites.iter().any(|s| s.id == site.id) {
-            return Err(format!("A site with id {} already exists", site.id));
+            return Err(AddError::DuplicateId(format!(
+                "A site with id {} already exists",
+                site.id
+            )));
         }
         self.sites.push(site);
-        self.save()
+        self.save().map_err(AddError::Write)
     }
 
     /// Replace the site with a matching id, preserving list order. A site that
@@ -377,7 +398,10 @@ mod tests {
         // rename is what leaves a previous file to assert on at all.
         std::fs::create_dir(dir.path().join("sites.json.tmp")).unwrap();
 
-        assert!(store.add(a_site("two")).is_err(), "the save must report the failure");
+        assert!(
+            matches!(store.add(a_site("two")), Err(AddError::Write(_))),
+            "a save failure must report as a write failure, so the caller keeps the row"
+        );
         assert_eq!(
             std::fs::read_to_string(&path).unwrap(),
             before,
@@ -420,7 +444,14 @@ mod tests {
         // distinguishable from a silent no-op.
         let mut clash = a_site("one");
         clash.interval_secs = 999;
-        assert!(store.add(clash).is_err(), "a duplicate id must be refused");
+        // Asserting the *variant*, not `.is_err()`. The looser form compiles
+        // untouched against a version that cannot tell a refusal from a write
+        // failure — which is exactly the bug this story fixes, so a test that
+        // cannot see the difference is not pinning it.
+        assert!(
+            matches!(store.add(clash), Err(AddError::DuplicateId(_))),
+            "a duplicate id must be refused as a refusal, not reported as a failed write"
+        );
 
         // Asserting on the reload rather than the in-memory list is what proves
         // the refusal happened before any write.
@@ -430,6 +461,48 @@ mod tests {
             reloaded.get("one").unwrap().interval_secs,
             60,
             "the original site must be left exactly as it was"
+        );
+    }
+
+    #[test]
+    fn a_refused_add_changes_neither_the_list_nor_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sites.json");
+
+        let mut store = load(path.clone()).store;
+        store.add(a_site("one")).unwrap();
+        let before = std::fs::read_to_string(&path).unwrap();
+
+        let mut clash = a_site("one");
+        clash.interval_secs = 999;
+        let refused = store.add(clash);
+
+        match &refused {
+            // The payload is the diagnostic, and it earns its place by naming the
+            // clashing id: the branch exists for a future importer or restore
+            // path, and "some site was refused" is not a useful thing to hand
+            // one. It never reaches the user — `add_site` words its own message.
+            Err(AddError::DuplicateId(diagnostic)) => assert!(
+                diagnostic.contains("one"),
+                "the diagnostic must name the clashing id, got: {diagnostic}"
+            ),
+            other => panic!("the refusal must be tellable from a write failure, got {other:?}"),
+        }
+        assert_eq!(store.list().len(), 1, "the in-memory list must be untouched");
+        assert_eq!(
+            store.get("one").unwrap().interval_secs,
+            60,
+            "and must still hold the original entry rather than the clashing one"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            before,
+            "the file must be byte-identical: the refusal is decided before any write"
+        );
+        assert_eq!(
+            file_names(dir.path()),
+            vec!["sites.json"],
+            "and no staging artifact may appear, because no save was ever attempted"
         );
     }
 
