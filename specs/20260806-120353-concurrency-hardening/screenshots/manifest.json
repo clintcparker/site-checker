@@ -1,0 +1,57 @@
+{
+  "mode_run": "before",
+  "run_type": "unattended",
+  "baseline": "unavailable",
+  "baseline_unavailable_reason": "macOS screen capture is blocked in this session: every screencapture output was 100% black (0 non-black pixels in a 5120x1440 full-screen grab). The app itself built and launched correctly — this is an environment limitation, not a defect in the base branch.",
+  "backup": true,
+  "sizes": { "default": "720x480", "narrow": "480x320" },
+  "seed_sites": [
+    { "id": "shots-up", "url": "https://example.com", "label": "Example", "interval_secs": 60 },
+    { "id": "shots-down", "url": "https://down.invalid", "label": "Never Up", "interval_secs": 60 },
+    { "id": "shots-plain", "url": "https://example.org", "interval_secs": 60 }
+  ],
+  "seed_rationale": "The skill's dependable default (one reachable site, one .invalid that never resolves so Down renders without waiting on a real outage) plus a third unlabelled site, because render.ts shows label-or-URL per row and the feature's evidence is about which rows exist. method_override is omitted deliberately: model.rs marks it #[serde(default)], so the seed parses without it.",
+  "views": [
+    {
+      "slug": "site-list",
+      "why": "The populated list plus the add form. Reference for FR-009/FR-012 and SC-003 — after the change, a refused add must produce zero rows, so the after run compares row-for-row against this.",
+      "how_to_reach": "Launch with the seed above; wait ~10s for Pending to resolve to Up/Down."
+    },
+    {
+      "slug": "add-error",
+      "why": "The add form with an error showing in #site-error. FR-010 rewords exactly this message — form.ts:101 renders a Rust Err(String) here — so the baseline pins today's wording and placement.",
+      "how_to_reach": "Type an invalid URL (e.g. 'ftp://example.com') into #site-url and submit. NOTE: the FR-010 duplicate-id refusal itself is NOT reachable by clicking, on either branch — every add mints a fresh id (spec Assumptions). The after run should capture this same invalid-URL error for a like-for-like comparison and rely on the automated tests (T019/T020/T023/T024) for the refusal string itself."
+    },
+    {
+      "slug": "warning-banner",
+      "why": "The #banner element visible. FR-004 raises the new poison-recovery warning through this same banner rather than a new mechanism, so the baseline shows the banner the after run must match.",
+      "how_to_reach": "Write an unparseable sites.json (e.g. '{') before launch; the store load failure surfaces in #banner with the empty state below it. Restore the seed afterwards."
+    }
+  ],
+  "ui_relevance": {
+    "verdict": "ui-relevant",
+    "reasoning": "plan.md states zero frontend files change and src/ is untouched. But the skill's exception for backend work that changes user-visible output applies: FR-004 adds a new store-warning banner message, FR-010 rewords the refused-add message the user reads (it must stop implying the change is merely unsaved), and FR-009 removes a row that appears today. Those are user-visible output changes, so this was NOT treated as a skip."
+  },
+  "environment": {
+    "app_built": true,
+    "app_launched": true,
+    "cargo_build": "Finished dev profile in 24.42s; `Running target/debug/site-checker`",
+    "window_observed": "CGWindowList saw owner=site-checker name='Site Checker' id=15729 pid=25503 bounds=2207,268,706x470 — the window really was on screen",
+    "capture_blocked": "screencapture -R and -l both fail with 'could not create image from rect/window'; full-screen -x succeeds but returns an all-black image (verified pixel-by-pixel: meanLuma=0.00, max=0, 0 non-black pixels)",
+    "root_cause_evidence": [
+      "CGGetActiveDisplayList returns 0 active displays for this process",
+      "stat -f%Su /dev/console returns no console user",
+      "TERM_PROGRAM=vscode — matches the known VS Code tunnel capture block",
+      "System Events reports 0 windows for every process (Finder, Code, site-checker) though 'UI elements enabled' is true",
+      "AX tree is degenerate: AXMainWindow/AXFocusedWindow/AXWindows[0] all report role=AXApplication with size 0x0, and AXSize is not settable (err -25205)"
+    ],
+    "consequence_for_after_run": "Window resizing is also unavailable by the same block (no AX), so the narrow 480x320 stress-test shot cannot be produced from this session either. Re-run from a local VS Code.app / Terminal window with Screen Recording and Accessibility granted, on an unlocked display, to capture both sizes."
+  },
+  "notes": [
+    "Feature dir resolved from the worktree, not the primary checkout: main's .specify/feature.json is stale (points at specs/003-durability). check-prerequisites.sh run inside /Users/clint/src/clintcparker/site-checker--20260806-120325-section-1-docs returns this feature.",
+    "Baseline was captured at the right point: the worktree branch is at 01303cc (== main) with no implementation yet.",
+    "The user's real sites.json was backed up to sites.json.shots-backup, plus an extra out-of-tree safety copy, and restored at the end — verified identical to the original (sha1 7150bef8...).",
+    "No before/ images were written. Nothing was faked; the skill's constraint is to report empty captures rather than retry blindly.",
+    "Rendering the frontend in a plain browser against the Vite dev server (port 1420) was rejected as a substitute: the page's Tauri IPC is absent there, so the result would misrepresent the app's real UI."
+  ]
+}
