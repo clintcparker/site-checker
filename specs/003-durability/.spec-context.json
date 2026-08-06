@@ -3,7 +3,7 @@
   "specName": "Durability & Data Integrity",
   "branch": "20260806-102818-durability-and-data",
   "currentStep": "implement",
-  "status": "completed",
+  "status": "archived",
   "history": [
     {
       "step": "specify",
@@ -272,6 +272,13 @@
       "kind": "complete",
       "by": "extension",
       "at": "2026-08-06T19:01:32.899Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-06T19:02:07.743Z"
     }
   ],
   "currentTask": "T030",

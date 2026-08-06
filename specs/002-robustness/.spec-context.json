@@ -3,7 +3,7 @@
   "specName": "robustness",
   "branch": "main",
   "currentStep": "implement",
-  "status": "completed",
+  "status": "archived",
   "history": [
     {
       "step": "tasks",
@@ -225,6 +225,13 @@
       "kind": "complete",
       "by": "extension",
       "at": "2026-08-06T19:01:35.678Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-06T19:02:11.911Z"
     }
   ],
   "currentTask": "T025",
