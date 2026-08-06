@@ -3,7 +3,7 @@
   "specName": "v1 Cleanup — Scaffold Leftovers & Message Clarity",
   "branch": "20260805-150909-cleanup-scaffold-leftovers",
   "currentStep": "plan",
-  "status": "planned",
+  "status": "archived",
   "history": [
     {
       "step": "specify",
@@ -18,6 +18,21 @@
       "kind": "start",
       "by": "extension",
       "at": "2026-08-05T22:42:41.681Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-06T00:31:30.862Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-06T00:31:40.026Z"
     }
-  ]
+  ],
+  "telemetryInstanceId": "cc1f83b4-0e46-43bc-b0e2-655c53910724"
 }

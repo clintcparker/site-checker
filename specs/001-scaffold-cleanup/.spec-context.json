@@ -3,7 +3,7 @@
   "specName": "Scaffold Cleanup",
   "branch": "main",
   "currentStep": "implement",
-  "status": "implementing",
+  "status": "archived",
   "history": [
     {
       "step": "tasks",
@@ -242,7 +242,22 @@
       "kind": "complete",
       "by": "extension",
       "at": "2026-08-05T23:24:01.650Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-06T00:31:34.128Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-06T00:31:44.307Z"
     }
   ],
-  "currentTask": "T029"
+  "currentTask": "T029",
+  "telemetryInstanceId": "abfedb5d-984c-4dc0-a1c2-c24c2cc8ef6e"
 }
