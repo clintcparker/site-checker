@@ -1,0 +1,65 @@
+{
+  "feature": "002-robustness",
+  "mode_captured": ["before"],
+  "baseline": "captured",
+  "base_ref": "main @ 1843ae3",
+  "captured_at": "2026-08-05T18:03:00-05:00",
+  "unattended": true,
+
+  "backup": true,
+  "backup_note": "The user's real sites.json was moved aside as sites.json.shots-backup, the seed below was written in its place, and the real file was restored over sites.json at the end of the run. Verified after restore: 5 real sites, byte-identical to an out-of-tree safety copy, and no .shots-backup file left behind. See notes for the pre-existing leaked state this run had to repair first.",
+
+  "sizes": {
+    "default": "720x480",
+    "narrow": "480x320"
+  },
+  "size_note": "default is the shipped size from src-tauri/tauri.conf.json; narrow is the configured minWidth/minHeight floor. PNGs are 2x Retina (1440x960 and 960x640) because the capture display is HiDPI.",
+
+  "seed_sites": [
+    { "id": "shots-up",      "url": "https://example.com",  "label": "Example",  "interval_secs": 60 },
+    { "id": "shots-down",    "url": "https://down.invalid", "label": "Never Up", "interval_secs": 60 },
+    { "id": "shots-nolabel", "url": "https://example.org",                       "interval_secs": 300 }
+  ],
+  "seed_rationale": "Three sites chosen to put every state this feature touches on screen at once. shots-up renders the Up dot; shots-down uses a .invalid TLD that never resolves, so it renders Down without waiting on a real outage; shots-nolabel has no label and a different interval, which exercises render.ts's label/URL fallback and gives the interval field a non-default value to show in Edit mode. An 'after' run MUST reuse this exact seed.",
+
+  "views": [
+    {
+      "slug": "site-list",
+      "why": "The status table is the surface US1 and US2 both change. US1 (hoisting the onSiteStatus/onStoreWarning listeners above the awaited startup IPC) must leave this view pixel-identical in the ordinary case -- a diff here is a regression, not a feature. US2 (dropping a stale status when a URL is edited) changes which dot a row shows, so the Up/Down/label/no-label rows are the reference.",
+      "reached_by": "App launch against the seed, ~20s wait so the 0-10s jittered first check resolves Pending into Up/Down."
+    },
+    {
+      "slug": "edit-form",
+      "why": "The form in Edit mode is the surface for US3 and US4. US3 adds an in-flight guard that disables #site-submit during the awaited call, so the enabled Save/Cancel pair is the before-state. US4 adds max=\"86400\" to #site-interval; the field's rendered appearance is the before-state (a bare number input with min only).",
+      "reached_by": "Clicking the Edit button on row 1 (Example / https://example.com), which populates the form and swaps Add for Save + Cancel."
+    },
+    {
+      "slug": "empty-state",
+      "why": "Covers the #empty paragraph plus the Add-mode form and the footer autostart checkbox that US5 null-guards. Also the tightest layout case: at 480x320 the form wraps onto two lines and the footer sits right at the window edge, so it is the most sensitive detector of accidental layout drift from US4's index.html edit.",
+      "reached_by": "Deleting all three seeded rows through the UI (per-row Delete), which is also the real user path into this state."
+    }
+  ],
+
+  "not_captured": [
+    {
+      "view": "store-warning banner",
+      "why": "Reaching #banner requires a deliberately corrupt sites.json, and no ROADMAP section 1 item changes the banner's markup or copy. US1 only changes when onStoreWarning is registered, not what it renders. Judged out of scope for a 3-view budget; add it in the 'after' run only if implementation touches showBanner."
+    },
+    {
+      "view": "inline form error (#site-error)",
+      "why": "US3's failure path must keep the inline error visible, but triggering it means submitting an invalid URL and capturing a transient state. The unit tests in T013 assert this directly and are a better regression net than a screenshot. Skipped deliberately."
+    }
+  ],
+
+  "notes": [
+    "FEATURE_DIR judgement call: .specify/scripts/bash/check-prerequisites.sh reported specs/001-scaffold-cleanup, which is stale -- .specify/feature.json still pointed at the shipped-and-archived 001 feature. The live feature is 002-robustness (tasks.md written 2026-08-05 17:52, status ready-to-implement, no implementation started). Captured against 002. Note that 002 has no spec.md and no plan.md by design: its tasks.md names docs/ROADMAP.md section 1 as the spec, so UI-relevance was judged from tasks.md and ROADMAP section 1 instead.",
+    "UI-relevant: yes. All five stories are frontend-only -- src/main.ts (US1, US2, US5), src/form.ts (US3, US4), index.html (US4). Three of the five change user-visible behavior, so a baseline is worth having even though most of the intended diff is 'nothing should change'.",
+    "Captured on the base branch (main @ 1843ae3) before T001's worktree exists. specs/002-robustness/ was untracked at capture time; this commit is its first.",
+    "Pre-existing leaked state from an earlier run, repaired before capture: a pnpm tauri dev process tree from the sibling worktree site-checker--20260805-150909-cleanup-scaffold-leftovers was still running and holding Vite's strictPort 1420, and ~/Library/Application Support/com.clintparker.site-checker/sites.json still held that run's seed data instead of the user's real sites. Both were cleaned up here.",
+    "Data-safety incident: sites.json.shots-backup (holding the user's 5 real sites) disappeared from the app-support directory mid-run, between two reads about 60 seconds apart. Nothing in this repo references that path outside the skill docs, so the deleter was external to this run. The file was reconstructed verbatim from its contents read moments earlier, an out-of-tree safety copy was written to /tmp/site-checker-sites-SAFETY-COPY.json, and the final restore was diffed against that copy and confirmed identical. Worth knowing for the 'after' run: do not assume a pre-existing .shots-backup will still be there later in the same run.",
+    "Environment: capture works from a GUI-attached local VS Code.app session. It does NOT work from a VS Code tunnel/remote-server session, where screencapture and System Events are both denied by TCC -- that is what blocked the 001 run. In this session screencapture and Accessibility were both available, so all six images are real captures.",
+    "Window control: osascript could not resize or read window geometry (System Events error -1719, no assistive access for osascript), so geometry came from CGWindowListCopyWindowInfo and resize/raise/click came from a small compiled Swift helper in /tmp using the Accessibility and CoreGraphics APIs. No application code, config, or repo file was modified to take these screenshots.",
+    "Captures use screencapture -l <windowid>, so each PNG is exactly the window with no desktop background and no shadow padding. The app was raised to the front first: synthetic clicks are positional and would otherwise land on whatever window is on top.",
+    "The 'Last checked' column reads a different relative time in each image (33s ago, 58s ago, 1m ago...). That is expected drift, not a diff -- ignore that column when comparing before/after."
+  ]
+}
