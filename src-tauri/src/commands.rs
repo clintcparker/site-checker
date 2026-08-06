@@ -1,30 +1,17 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
-use serde::Serialize;
-use tauri::{Emitter, State};
+use tauri::State;
 
 use crate::engine::Engine;
+use crate::lock::{self, SharedStore};
 use crate::model::{clamp_interval, normalize_url, Site};
-use crate::store::Store;
+use crate::store::{AddError, Replaced};
 
 pub struct AppState {
-    pub store: Arc<Mutex<Store>>,
+    pub store: SharedStore,
     pub engine: Engine,
     /// Set at startup when sites.json could not be read. Read once by the UI.
     pub warning: Mutex<Option<String>>,
-}
-
-#[derive(Clone, Serialize)]
-struct StoreWarning {
-    message: String,
-}
-
-/// A write failure must not lose the user's edit. The in-memory change stands
-/// and the UI shows a banner.
-fn warn_on_write_failure(app: &tauri::AppHandle, result: Result<(), String>) {
-    if let Err(message) = result {
-        let _ = app.emit("store-warning", StoreWarning { message });
-    }
 }
 
 fn empty_to_none(label: Option<String>) -> Option<String> {
@@ -35,17 +22,19 @@ fn empty_to_none(label: Option<String>) -> Option<String> {
 
 #[tauri::command]
 pub fn list_sites(state: State<'_, AppState>) -> Vec<Site> {
-    state.store.lock().unwrap().list()
+    state.store.lock().list()
 }
 
 #[tauri::command]
 pub fn get_warning(state: State<'_, AppState>) -> Option<String> {
-    state.warning.lock().unwrap().take()
+    // Recovers silently, on purpose: this slot holds one `Option<String>` that
+    // is taken once, and a warning *about the warning channel* would name no
+    // consequence the user could act on (FR-003).
+    lock::recover(&state.warning).0.take()
 }
 
 #[tauri::command]
 pub fn add_site(
-    app: tauri::AppHandle,
     state: State<'_, AppState>,
     url: String,
     label: Option<String>,
@@ -62,8 +51,34 @@ pub fn add_site(
         method_override: None,
     };
 
-    let write = state.store.lock().unwrap().add(site.clone());
-    warn_on_write_failure(&app, write);
+    // The two failures owe the user opposite answers, so this is where they part.
+    //
+    // A refusal means nothing was applied anywhere — no row may appear and no
+    // timer may start, so it returns *above* `engine.start`. It raises no banner
+    // either: the message below is the whole story, and a second "could not be
+    // saved" alongside it would contradict it.
+    //
+    // A write failure keeps every one of today's behaviours: the change stands
+    // in memory, the row appears, checks begin, and the banner says it could not
+    // be saved.
+    // Bound to a `let` so the store guard drops here rather than living on as a
+    // `match` scrutinee temporary — those survive to the end of the match, which
+    // would hold the store lock across the banner emit below. Not a deadlock
+    // today, but the same lock-ordering hazard `update_site` is careful about,
+    // and it costs one line to not have to reason about it.
+    let stored = state.store.lock().add(site.clone());
+
+    match stored {
+        Err(AddError::DuplicateId(_)) => {
+            return Err(
+                "That site was not added — the list already has an entry with the same \
+                 identity. Nothing was changed."
+                    .to_string(),
+            )
+        }
+        Err(AddError::Write(message)) => state.store.warn_on_write_failure(Err(message)),
+        Ok(()) => {}
+    }
 
     state.engine.start(site.clone());
     Ok(site)
@@ -71,39 +86,39 @@ pub fn add_site(
 
 #[tauri::command]
 pub fn update_site(
-    app: tauri::AppHandle,
     state: State<'_, AppState>,
     id: String,
     url: String,
     label: Option<String>,
     interval_secs: u64,
 ) -> Result<Site, String> {
+    // A bad URL is rejected before anything else happens, exactly as before.
     let url = normalize_url(&url)?;
 
-    let existing = state
-        .store
-        .lock()
-        .unwrap()
-        .get(&id)
-        .ok_or_else(|| "That site no longer exists".to_string())?;
-
-    // A changed URL invalidates what we learned about HEAD support.
-    let method_override = if existing.url == url {
-        existing.method_override
-    } else {
-        None
+    // One lock, one scope. `Store::replace` reads the current entry, decides the
+    // learned request method from it, writes, and saves under a single borrow —
+    // the decision that used to live here moved there so no second edit can land
+    // between the read and the write.
+    //
+    // The guard is bound to a name inside an explicit scope so it is *provably*
+    // released before `reschedule` below. Left as a `let ... else` temporary it
+    // would live to the end of the statement, holding the store lock across a
+    // scheduling call. Not a deadlock today — but a lock-ordering hazard nobody
+    // should have to re-derive later, and this costs two braces.
+    let replaced = {
+        let mut store = state.store.lock();
+        store.replace(
+            &id,
+            url,
+            empty_to_none(label),
+            clamp_interval(interval_secs),
+        )
     };
 
-    let site = Site {
-        id,
-        url,
-        label: empty_to_none(label),
-        interval_secs: clamp_interval(interval_secs),
-        method_override,
-    };
+    let Replaced { site, write } =
+        replaced.ok_or_else(|| "That site no longer exists".to_string())?;
 
-    let write = state.store.lock().unwrap().update(site.clone());
-    warn_on_write_failure(&app, write);
+    state.store.warn_on_write_failure(write);
 
     // Only this site's timer restarts; every other site is untouched.
     state.engine.reschedule(site.clone());
@@ -111,14 +126,10 @@ pub fn update_site(
 }
 
 #[tauri::command]
-pub fn delete_site(
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), String> {
+pub fn delete_site(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state.engine.stop(&id);
-    let write = state.store.lock().unwrap().delete(&id);
-    warn_on_write_failure(&app, write);
+    let write = state.store.lock().delete(&id);
+    state.store.warn_on_write_failure(write);
     Ok(())
 }
 

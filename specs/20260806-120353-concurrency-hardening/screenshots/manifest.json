@@ -1,0 +1,78 @@
+{
+  "mode_run": "after",
+  "run_type": "unattended",
+  "baseline": "unavailable",
+  "baseline_unavailable_reason": "The before pass captured no images: macOS screen capture was blocked in that session (every screencapture output was 100% black). That was an environment limitation, never a defect in the base branch. The block has since lifted — see environment.after_run below — but a baseline cannot be reconstructed retroactively from this run, so the after/ images stand alone.",
+  "backup": true,
+  "sizes": { "default": "720x480", "narrow": "480x320" },
+  "seed_sites": [
+    { "id": "shots-up",   "url": "https://example.com",  "label": "Example",  "interval_secs": 60 },
+    { "id": "shots-down", "url": "https://down.invalid", "label": "Never Up", "interval_secs": 60 },
+    { "id": "shots-plain", "url": "https://example.org", "interval_secs": 60 }
+  ],
+  "seed_rationale": "The skill's dependable default (one reachable site, one .invalid that never resolves so Down renders without waiting on a real outage) plus a third unlabelled site, because render.ts shows label-or-URL per row and the feature's evidence is about which rows exist. method_override is omitted deliberately: model.rs marks it #[serde(default)], so the seed parses without it. The after run reused this list verbatim from the before pass.",
+  "views": [
+    {
+      "slug": "site-list",
+      "why": "The populated list plus the add form. Reference for FR-009/FR-012 and SC-003 — after the change, a refused add must produce zero rows, so the after run compares row-for-row against this.",
+      "how_to_reach": "Launch with the seed above; wait ~10s for Pending to resolve to Up/Down.",
+      "captured": ["after/site-list-default.png", "after/site-list-narrow.png"],
+      "after_observation": "All three seed rows render with resolved statuses — Example: Up, Never Up: Down, https://example.org: Up. The unlabelled third site falls back to its URL as the row title, unchanged. At 480x320 the Add button wraps below the input row and the 'Launch at login' footer clips at the window floor; that is the pre-existing layout at the minimum size, not something this feature introduced."
+    },
+    {
+      "slug": "add-error",
+      "why": "The add form with an error showing in #site-error. FR-010 rewords exactly this message — form.ts:101 renders a Rust Err(String) here — so the baseline pins today's wording and placement.",
+      "how_to_reach": "Type an invalid URL (e.g. 'ftp://example.com') into #site-url and submit. NOTE: the FR-010 duplicate-id refusal itself is NOT reachable by clicking, on either branch — every add mints a fresh id (spec Assumptions). The after run should capture this same invalid-URL error for a like-for-like comparison and rely on the automated tests (T019/T020/T023/T024) for the refusal string itself.",
+      "captured": ["after/add-error-default.png", "after/add-error-narrow.png"],
+      "after_observation": "Submitting 'ftp://example.com' renders 'Only http and https URLs are supported' in #site-error and the row count stays at three — the refused add added no row (FR-009) and left sites.json untouched (FR-012, verified by re-reading the seed file after the submit). This is the reachable-by-clicking rejection path; the duplicate-id refusal string that FR-010 actually rewords remains unreachable from the UI on both branches, exactly as the before pass predicted, and stays covered by the automated tests."
+    },
+    {
+      "slug": "warning-banner",
+      "why": "The #banner element visible. FR-004 raises the new poison-recovery warning through this same banner rather than a new mechanism, so the baseline shows the banner the after run must match.",
+      "how_to_reach": "Write an unparseable sites.json (e.g. '{') before launch; the store load failure surfaces in #banner with the empty state below it. Restore the seed afterwards.",
+      "captured": ["after/warning-banner-default.png", "after/warning-banner-narrow.png"],
+      "after_observation": "The banner reads 'sites.json is not valid JSON (invalid type: map, expected a sequence at line 1 column 0). Starting with an empty list; the existing file has been left alone.' with the empty state below it. This is store.rs's load-failure message, not FR-004's poison-recovery message — the latter needs a genuinely poisoned lock, which no sequence of clicks can produce. What this shot demonstrates is the mechanism FR-004 reuses: the same #banner element, same placement, same styling, so the poison warning will surface here rather than through anything new. The banner wraps to three lines at 480x320 and still pushes the rest of the layout down without overflow."
+    }
+  ],
+  "ui_relevance": {
+    "verdict": "ui-relevant",
+    "reasoning": "plan.md states zero frontend files change and src/ is untouched. But the skill's exception for backend work that changes user-visible output applies: FR-004 adds a new store-warning banner message, FR-010 rewords the refused-add message the user reads (it must stop implying the change is merely unsaved), and FR-009 removes a row that appears today. Those are user-visible output changes, so this was NOT treated as a skip."
+  },
+  "environment": {
+    "before_run": {
+      "app_built": true,
+      "app_launched": true,
+      "capture_blocked": true,
+      "root_cause": "VS Code tunnel session: CGGetActiveDisplayList returned 0 active displays, /dev/console had no console user, System Events saw 0 windows for every process, and the AX tree was degenerate (AXSize not settable, err -25205). screencapture -R and -l failed outright; full-screen -x returned an all-black image."
+    },
+    "after_run": {
+      "app_built": true,
+      "app_launched": true,
+      "cargo_build": "Compiling site-checker v0.1.0; Finished `dev` profile in 4.35s; Running target/debug/site-checker",
+      "capture_blocked": false,
+      "capture_unblocked_evidence": [
+        "CGGetActiveDisplayList reports 1 active display (was 0)",
+        "stat -f%Su /dev/console returns 'clint' (was empty)",
+        "AXIsProcessTrusted()=true and AXSize is settable, so both window sizes were reachable",
+        "System Events reports 1 window for process site-checker (was 0)",
+        "Probe full-screen grab: 5120x1440, 99.83% non-black pixels (was 0% non-black)"
+      ],
+      "capture_method": "screencapture -x -o -l <CGWindowID>, window id read from CGWindowListCopyWindowInfo via a compiled Swift helper. Every PNG was verified non-black pixel-by-pixel before being kept: site-list-default measured 99.95% non-black.",
+      "resize_method": "System Events 'set size of window 1' — verified working this session; the Swift AX helper was built as a fallback and was not needed.",
+      "windows_observed": [
+        "run 1 (seeded): owner=site-checker name='Site Checker' id=15902 pid=62361 bounds=2200,263,720x480",
+        "run 2 (corrupt store, for the banner view): id=15987 pid=64565 bounds=2200,263,720x480"
+      ]
+    }
+  },
+  "notes": [
+    "Feature dir resolved from the worktree, not the primary checkout: main's .specify/feature.json is stale (points at specs/003-durability). check-prerequisites.sh run inside /Users/clint/src/clintcparker/site-checker--20260806-120325-section-1-docs returns this feature.",
+    "The implementation builds and starts cleanly. No build failure, no startup panic, no runtime error in the dev log across two launches — one against the seeded list and one against a deliberately corrupt one. This is the end-to-end smoke test the skill exists to provide, and it passes.",
+    "All six after/ images are genuine window captures of the running app, verified non-black. Nothing was faked or substituted.",
+    "There is no before/ directory to compare against, so these images document the post-change state rather than a diff. If a true pair is wanted before merge, re-run the before pass against the merge-base from a session like this one — the environment block that defeated it has lifted.",
+    "Two views exercise behaviour this feature changed and can be read as evidence: add-error shows a refused add producing zero rows, and warning-banner shows the banner mechanism FR-004 reuses. Neither reaches the specific new strings (duplicate-id refusal, poison recovery) — both require states unreachable by clicking, which the spec anticipated and the automated tests cover.",
+    "tasks.md still has T025 and T040 marked incomplete, both flagged '[~] Partially done — click-through NOT performed (non-interactive session)'. This run performed part of what they asked: the app was launched, the list loaded, checks ran, an add was attempted and correctly refused, and sites.json came back byte-identical. The delete and edit click-throughs were not exercised. The tasks were left unchecked — this command does not modify feature artifacts other than screenshots/.",
+    "The user's real sites.json was backed up to sites.json.shots-backup plus an out-of-tree safety copy at /tmp/site-checker-sites-safety-after-run.json, and restored at the end — verified identical to the original (sha1 7150bef89871c83ceb3b9064e67b8ac1e499ee56). The dev process tree was killed and port 1420 confirmed free before restoring.",
+    "The corrupt-store shot required a second launch with sites.json replaced by '{'. That file lives outside the checkout and was overwritten by the restore; nothing about it was committed."
+  ]
+}
