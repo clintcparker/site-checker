@@ -1,0 +1,16 @@
+$ cargo test --manifest-path src-tauri/Cargo.toml lock::
+running 5 tests
+test lock::tests::no_module_in_this_crate_takes_a_lock_without_recovering ... ok
+test lock::tests::an_unpoisoned_lock_is_indistinguishable_from_todays_behaviour ... ok
+test lock::tests::a_second_recovery_reports_clean_so_no_degraded_mode_accumulates ... ok
+test lock::tests::recovery_preserves_what_the_faulting_operation_had_already_applied ... ok
+test lock::tests::recover_returns_a_usable_guard_after_a_fault_and_reports_it ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 50 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (src-tauri/target/debug/deps/site_checker-17f5aafeb275b8a8)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

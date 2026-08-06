@@ -1,0 +1,16 @@
+Wire-contract cross-check: src-tauri/src/commands.rs  <->  src/api.ts
+Tauri-injected parameters (State<..>, AppHandle) are stripped before comparison;
+they are never present in the JS argument object. JS keys are camelCase by Tauri
+convention and are converted to snake_case here before matching.
+
+command          rust args (JS-visible)                       js keys -> snake_case                        match
+----------------------------------------------------------------------------------------------------------------
+add_site         ['url', 'label', 'interval_secs']            ['url', 'label', 'interval_secs']            OK
+delete_site      ['id']                                       ['id']                                       OK
+get_autostart    []                                           []                                           OK
+get_warning      []                                           []                                           OK
+list_sites       []                                           []                                           OK
+set_autostart    ['enabled']                                  ['enabled']                                  OK
+update_site      ['id', 'url', 'label', 'interval_secs']      ['id', 'url', 'label', 'interval_secs']      OK
+----------------------------------------------------------------------------------------------------------------
+VERDICT: PASS — all 7 commands match argument-for-argument

@@ -1,0 +1,14 @@
+$ pnpm test
+
+> site-checker@0.1.0 test /Users/clint/src/clintcparker/site-checker
+> vitest run
+
+
+ RUN  v4.1.10 /Users/clint/src/clintcparker/site-checker
+
+
+ Test Files  4 passed (4)
+      Tests  30 passed (30)
+   Start at  14:50:30
+   Duration  354ms (transform 140ms, setup 0ms, import 213ms, tests 54ms, environment 766ms)
+
