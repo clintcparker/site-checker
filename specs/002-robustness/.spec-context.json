@@ -3,7 +3,7 @@
   "specName": "robustness",
   "branch": "main",
   "currentStep": "implement",
-  "status": "implemented",
+  "status": "completed",
   "history": [
     {
       "step": "tasks",
@@ -218,7 +218,15 @@
       "kind": "complete",
       "by": "extension",
       "at": "2026-08-06T01:22:02.472Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-06T19:01:35.678Z"
     }
   ],
-  "currentTask": "T025"
+  "currentTask": "T025",
+  "telemetryInstanceId": "6072db56-2afc-4f78-9469-13ecdcba6d3d"
 }
