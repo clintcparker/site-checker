@@ -1,0 +1,197 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-08-05T00:00:00Z",
+  "catalog_url": "https://raw.githubusercontent.com/clintcparker/speckit-addons/main/extensions/catalog.json",
+  "extensions": {
+    "screenshots": {
+      "id": "screenshots",
+      "name": "UI Screenshots",
+      "description": "Before/after UI screenshots for a feature, committed to the branch for embedding in the pull request",
+      "author": "clintcparker",
+      "version": "0.1.0",
+      "download_url": "https://github.com/clintcparker/speckit-addons/releases/download/ext-screenshots-v0.1.0/screenshots-0.1.0.zip",
+      "sha256": "4b72e3f29bb41bc6b9cb593bb06502b5977607ef5f46f494e2a44a8675db9f75",
+      "repository": "https://github.com/clintcparker/speckit-addons",
+      "homepage": "https://github.com/clintcparker/speckit-addons/tree/main/extensions/screenshots",
+      "documentation": "https://github.com/clintcparker/speckit-addons/blob/ext-screenshots-v0.1.0/extensions/screenshots/README.md",
+      "changelog": "https://github.com/clintcparker/speckit-addons/blob/ext-screenshots-v0.1.0/extensions/screenshots/CHANGELOG.md",
+      "license": "MIT",
+      "category": "process",
+      "effect": "read-write",
+      "requires": {
+        "speckit_version": ">=0.1.0"
+      },
+      "provides": {
+        "commands": 1,
+        "hooks": 0
+      },
+      "tags": [
+        "process",
+        "qa",
+        "automation",
+        "screenshots"
+      ],
+      "verified": false,
+      "created_at": "2026-08-05T00:00:00Z",
+      "updated_at": "2026-08-05T00:00:00Z"
+    },
+    "worktrees": {
+      "id": "worktrees",
+      "name": "Worktrees",
+      "description": "Default-on worktree isolation for parallel agents \u2014 worktree-first flow, sibling or nested layout",
+      "author": "clintcparker",
+      "version": "2.0.0",
+      "download_url": "https://github.com/clintcparker/speckit-addons/releases/download/ext-worktrees-v2.0.0/worktrees-2.0.0.zip",
+      "sha256": "6de8317646dd377113249228c8a8a3e63843873e9a134193379e5c3aeadf8bd2",
+      "repository": "https://github.com/clintcparker/speckit-addons",
+      "homepage": "https://github.com/clintcparker/speckit-addons/tree/main/extensions/worktrees",
+      "documentation": "https://github.com/clintcparker/speckit-addons/blob/ext-worktrees-v2.0.0/extensions/worktrees/README.md",
+      "changelog": "https://github.com/clintcparker/speckit-addons/blob/ext-worktrees-v2.0.0/extensions/worktrees/CHANGELOG.md",
+      "license": "MIT",
+      "category": "process",
+      "effect": "read-write",
+      "requires": {
+        "speckit_version": ">=0.4.0"
+      },
+      "provides": {
+        "commands": 3,
+        "hooks": 1
+      },
+      "tags": [
+        "worktree",
+        "git",
+        "parallel",
+        "isolation",
+        "agents"
+      ],
+      "verified": false,
+      "created_at": "2026-07-30T00:00:00Z",
+      "updated_at": "2026-08-05T00:00:00Z"
+    },
+    "git": {
+      "id": "git",
+      "name": "Git Branching Workflow (worktree-safe fork)",
+      "description": "Fork of spec-kit's bundled git extension: honors branch_numbering: timestamp for hook callers and leaves branch creation to the worktrees extension. Install with --from; `specify extension add git` resolves the bundled copy first.",
+      "author": "clintcparker",
+      "version": "1.1.0",
+      "download_url": "https://github.com/clintcparker/speckit-addons/releases/download/ext-git-v1.1.0/git-1.1.0.zip",
+      "sha256": "bfcf7fd208af523bcb2883f78aac457488f018080cb15ae23b5822a5068ff987",
+      "repository": "https://github.com/clintcparker/speckit-addons",
+      "homepage": "https://github.com/clintcparker/speckit-addons/tree/main/extensions/git",
+      "documentation": "https://github.com/clintcparker/speckit-addons/blob/ext-git-v1.1.0/extensions/git/README.md",
+      "changelog": "https://github.com/clintcparker/speckit-addons/blob/ext-git-v1.1.0/extensions/git/CHANGELOG.md",
+      "license": "MIT",
+      "category": "process",
+      "effect": "read-write",
+      "requires": {
+        "speckit_version": ">=0.2.0"
+      },
+      "provides": {
+        "commands": 5,
+        "hooks": 17
+      },
+      "tags": [
+        "git",
+        "branching",
+        "workflow",
+        "worktree"
+      ],
+      "verified": false,
+      "created_at": "2026-08-05T00:00:00Z",
+      "updated_at": "2026-08-05T00:00:00Z"
+    },
+    "ship": {
+      "id": "ship",
+      "name": "Ship Release",
+      "description": "Automates release pipeline: pre-flight checks, branch sync, changelog generation, CI verification, and PR creation",
+      "author": "arunt14",
+      "version": "1.0.0",
+      "download_url": "https://github.com/arunt14/spec-kit-ship/archive/refs/tags/v1.0.0.zip",
+      "sha256": "ec6dab4d371819ea85002418a2d5ee0874dbffef7a4d499844b30a400e34d68e",
+      "repository": "https://github.com/arunt14/spec-kit-ship",
+      "homepage": "https://github.com/arunt14/spec-kit-ship",
+      "documentation": "https://github.com/arunt14/spec-kit-ship/blob/v1.0.0/README.md",
+      "changelog": "https://github.com/arunt14/spec-kit-ship/blob/v1.0.0/CHANGELOG.md",
+      "license": "MIT",
+      "category": "process",
+      "effect": "read-write",
+      "requires": {
+        "speckit_version": ">=0.1.0"
+      },
+      "provides": {
+        "commands": 1,
+        "hooks": 1
+      },
+      "tags": [
+        "process",
+        "release",
+        "automation"
+      ],
+      "verified": false,
+      "created_at": "2026-07-30T00:00:00Z",
+      "updated_at": "2026-07-30T00:00:00Z"
+    },
+    "staff-review": {
+      "id": "staff-review",
+      "name": "Staff Review",
+      "description": "Staff-engineer-level code review that validates implementation against spec, checks security, performance, and test coverage",
+      "author": "arunt14",
+      "version": "1.0.0",
+      "download_url": "https://github.com/arunt14/spec-kit-staff-review/archive/refs/tags/v1.0.0.zip",
+      "sha256": "7c2a5c8cfbfdb0e5fa20d5c86efaf6ae16e344bf98b7a90d1ea63d0de99d2f8a",
+      "repository": "https://github.com/arunt14/spec-kit-staff-review",
+      "homepage": "https://github.com/arunt14/spec-kit-staff-review",
+      "documentation": "https://github.com/arunt14/spec-kit-staff-review/blob/v1.0.0/README.md",
+      "changelog": "https://github.com/arunt14/spec-kit-staff-review/blob/v1.0.0/CHANGELOG.md",
+      "license": "MIT",
+      "category": "code",
+      "effect": "read-only",
+      "requires": {
+        "speckit_version": ">=0.1.0"
+      },
+      "provides": {
+        "commands": 1,
+        "hooks": 1
+      },
+      "tags": [
+        "code",
+        "review",
+        "quality"
+      ],
+      "verified": false,
+      "created_at": "2026-07-30T00:00:00Z",
+      "updated_at": "2026-07-30T00:00:00Z"
+    },
+    "qa": {
+      "id": "qa",
+      "name": "QA Testing",
+      "description": "Systematic QA testing with browser-driven or CLI-based validation of acceptance criteria from spec",
+      "author": "arunt14",
+      "version": "1.0.0",
+      "download_url": "https://github.com/arunt14/spec-kit-qa/archive/refs/tags/v1.0.0.zip",
+      "sha256": "90fa06c7d71da95f34385ef9f58632790f80af7c199a4054bb9bf4d921daaeb9",
+      "repository": "https://github.com/arunt14/spec-kit-qa",
+      "homepage": "https://github.com/arunt14/spec-kit-qa",
+      "documentation": "https://github.com/arunt14/spec-kit-qa/blob/v1.0.0/README.md",
+      "changelog": "https://github.com/arunt14/spec-kit-qa/blob/v1.0.0/CHANGELOG.md",
+      "license": "MIT",
+      "category": "code",
+      "effect": "read-only",
+      "requires": {
+        "speckit_version": ">=0.1.0"
+      },
+      "provides": {
+        "commands": 1,
+        "hooks": 1
+      },
+      "tags": [
+        "code",
+        "testing",
+        "qa"
+      ],
+      "verified": false,
+      "created_at": "2026-07-30T00:00:00Z",
+      "updated_at": "2026-07-30T00:00:00Z"
+    }
+  }
+}

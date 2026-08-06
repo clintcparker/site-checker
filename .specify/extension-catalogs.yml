@@ -4,3 +4,8 @@ catalogs:
   priority: 2
   install_allowed: true
   description: Community-contributed extensions (install enabled)
+- name: speckit-addons
+  url: https://raw.githubusercontent.com/clintcparker/speckit-addons/main/extensions/catalog.json
+  priority: 5
+  install_allowed: true
+  description: ''

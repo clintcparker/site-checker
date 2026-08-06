@@ -2,8 +2,10 @@ installed:
 - brownfield
 - companion
 - git
+- qa
 - screenshots
 - ship
+- staff-review
 - worktrees
 settings:
   auto_execute_hooks: true
@@ -203,6 +205,24 @@ hooks:
     prompt: Execute speckit.companion.after-implement?
     description: Per-task journaling on implement (currentStep=implement; status=implemented
       when all tasks checked)
+    condition: null
+  - extension: staff-review
+    command: speckit.staff-review.run
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Run staff-level code review?
+    description: Reviews implementation changes against spec for correctness, security,
+      and quality
+    condition: null
+  - extension: qa
+    command: speckit.qa.run
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Run QA testing?
+    description: Validates acceptance criteria through browser-driven or CLI-based
+      testing
     condition: null
   after_checklist:
   - extension: git
