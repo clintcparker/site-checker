@@ -258,6 +258,50 @@ if [ "$USE_TIMESTAMP" = true ] && [ -n "$BRANCH_NUMBER" ]; then
     BRANCH_NUMBER=""
 fi
 
+INIT_OPTIONS_FILE="$REPO_ROOT/.specify/init-options.json"
+
+# Read a top-level string value from .specify/init-options.json.
+read_init_option() {
+    local key="$1"
+    [ -f "$INIT_OPTIONS_FILE" ] || return 0
+    if command -v python3 >/dev/null 2>&1; then
+        SPECKIT_INIT_OPTIONS="$INIT_OPTIONS_FILE" SPECKIT_KEY="$key" python3 -c '
+import json, os, sys
+try:
+    with open(os.environ["SPECKIT_INIT_OPTIONS"], encoding="utf-8") as fh:
+        data = json.load(fh)
+except (OSError, ValueError):
+    sys.exit(0)
+value = data.get(os.environ["SPECKIT_KEY"])
+if isinstance(value, str):
+    print(value.strip())
+' 2>/dev/null
+        return
+    fi
+    # Fallback when python3 is unavailable; init-options.json is flat and generated.
+    grep -E "\"${key}\"[[:space:]]*:" "$INIT_OPTIONS_FILE" 2>/dev/null \
+        | head -n 1 \
+        | sed -E "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"([^\"]*)\".*/\1/"
+}
+
+# Honor init-options.json feature_numbering when the caller didn't decide
+# explicitly. Without this the configured strategy is dead and every feature
+# directory falls back to sequential numbering regardless of config. An explicit
+# --number still forces sequential, mirroring the git extension's
+# create-new-feature-branch.sh handling of branch_numbering.
+if [ "$USE_TIMESTAMP" != true ] && [ -z "$BRANCH_NUMBER" ]; then
+    FEATURE_NUMBERING=$(read_init_option feature_numbering)
+    if [ -z "$FEATURE_NUMBERING" ]; then
+        FEATURE_NUMBERING=$(read_init_option branch_numbering)
+        if [ -n "$FEATURE_NUMBERING" ]; then
+            >&2 echo "[specify] Warning: 'branch_numbering' in init-options.json is deprecated. Rename it to 'feature_numbering'."
+        fi
+    fi
+    if [ "$FEATURE_NUMBERING" = "timestamp" ]; then
+        USE_TIMESTAMP=true
+    fi
+fi
+
 # Determine branch prefix
 if [ "$USE_TIMESTAMP" = true ]; then
     FEATURE_NUM=$(date +%Y%m%d-%H%M%S)

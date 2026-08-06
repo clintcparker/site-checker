@@ -84,16 +84,18 @@ Given that feature description, do this:
    Specs live under the default `specs/` directory unless the user explicitly provides `SPECIFY_FEATURE_DIRECTORY`.
 
    **Resolution order for `SPECIFY_FEATURE_DIRECTORY`**:
-   1. If the user explicitly provided `SPECIFY_FEATURE_DIRECTORY` (e.g., via environment variable, argument, or configuration), use it as-is
-   2. Otherwise, auto-generate it under `specs/`:
-      - Check `.specify/init-options.json` for `feature_numbering` (preferred) or `branch_numbering` (deprecated, migration only — will be removed in a future release)
-      - If `"timestamp"`: prefix is `YYYYMMDD-HHMMSS` (current timestamp)
-      - If `"sequential"` or absent: prefix is `NNN` (next available 3-digit number after scanning existing directories in `specs/`)
-      - Construct the directory name: `<prefix>-<short-name>` (e.g., `003-user-auth` or `20260319-143022-user-auth`)
-      - Set `SPECIFY_FEATURE_DIRECTORY` to `specs/<directory-name>`
-      - If `branch_numbering` was used (and `feature_numbering` was absent), emit a one-line warning: "⚠️ `branch_numbering` in init-options.json is deprecated. Rename to `feature_numbering`."
+   1. If the user explicitly provided `SPECIFY_FEATURE_DIRECTORY` (e.g., via environment variable, argument, or configuration), use it as-is and create the directory and spec file manually (see the manual fallback below).
+   2. Otherwise, **run the script** — it is the single source of truth for the directory name:
 
-   **Create the directory and spec file**:
+      ```bash
+      .specify/scripts/bash/create-new-feature.sh --json --short-name "<short-name>" "<feature description>"
+      ```
+
+      The script reads `feature_numbering` from `.specify/init-options.json` (`"timestamp"` → `YYYYMMDD-HHMMSS` prefix, `"sequential"` or absent → next `NNN`), honors the deprecated `branch_numbering` alias with a warning, creates the directory, copies the resolved `spec-template` into it, and persists `.specify/feature.json`. Parse `SPEC_FILE` from its JSON output, set `SPEC_FILE` to that value and `SPECIFY_FEATURE_DIRECTORY` to its parent directory, then skip the manual fallback below.
+
+      **Never hand-compute the prefix.** Do not scan `specs/` for the highest `NNN` and add one — that silently produces sequential names in a repo configured for `timestamp`, which is the exact drift this delegation prevents. If the script is unavailable (non-bash environment), read `feature_numbering` from `.specify/init-options.json` yourself and apply the mapping above before falling back to manual creation.
+
+   **Manual fallback — only for case 1, or when the script cannot be run**:
    - `mkdir -p SPECIFY_FEATURE_DIRECTORY`
    - Resolve the active `spec-template` through the Spec Kit preset/template resolution stack (equivalent to `specify preset resolve spec-template`)
    - Copy the resolved `spec-template` file to `SPECIFY_FEATURE_DIRECTORY/spec.md` as the starting point
