@@ -1,0 +1,20 @@
+$ grep -rn 'lock()\.unwrap()' src-tauri/src/
+(exit=1 — 1 means zero matches)
+
+$ grep -rn '\.lock(' src-tauri/src/
+src-tauri/src/commands.rs:25:    state.store.lock().list()
+src-tauri/src/commands.rs:69:    let stored = state.store.lock().add(site.clone());
+src-tauri/src/commands.rs:109:        let mut store = state.store.lock();
+src-tauri/src/commands.rs:131:    let write = state.store.lock().delete(&id);
+src-tauri/src/engine.rs:125:        let mut store = self.store.lock();
+src-tauri/src/lib.rs:37:            let sites = store.lock().list();
+src-tauri/src/lock.rs:28:    match mutex.lock() {
+src-tauri/src/lock.rs:236:        let unrecovered = concat!(".lock()", ".unwrap()");
+
+$ grep -rn 'lock::recover' src-tauri/src/
+src-tauri/src/commands.rs:33:    lock::recover(&state.warning).0.take()
+src-tauri/src/store.rs:257:    use crate::lock::recover;
+src-tauri/src/store.rs:289:    /// Acquired through `lock::recover` rather than a hand-rolled unrecovered
+src-tauri/src/lock.rs:253:                 Use SharedStore::lock for the site list, or lock::recover with a \
+src-tauri/src/engine.rs:62:        let mut tasks = lock::recover(&self.inner.tasks).0;
+src-tauri/src/engine.rs:78:        let removed = lock::recover(&self.inner.tasks).0.remove(id);
