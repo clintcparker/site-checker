@@ -1,7 +1,7 @@
 {
   "ai": "claude",
   "ai_skills": true,
-  "feature_numbering": "timestamp",
+  "feature_numbering": "sequential",
   "here": true,
   "integration": "claude",
   "script": "sh",

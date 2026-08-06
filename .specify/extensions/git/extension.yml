@@ -3,10 +3,10 @@ schema_version: "1.0"
 extension:
   id: git
   name: "Git Branching Workflow"
-  version: "1.0.0"
+  version: "1.1.0"
   description: "Feature branch creation, numbering (sequential/timestamp), templating, validation, and Git remote detection"
-  author: spec-kit-core
-  repository: https://github.com/github/spec-kit
+  author: clintcparker
+  repository: https://github.com/clintcparker/speckit-addons
   license: MIT
 
 requires:
@@ -44,10 +44,6 @@ hooks:
     command: speckit.git.initialize
     optional: false
     description: "Initialize Git repository before constitution setup"
-  before_specify:
-    command: speckit.git.feature
-    optional: false
-    description: "Create feature branch before specification"
   before_clarify:
     command: speckit.git.commit
     optional: true
@@ -136,7 +132,13 @@ tags:
 
 config:
   defaults:
-    branch_numbering: sequential
+    # Defaults to timestamp in this fork (upstream default: sequential): parallel
+    # worktrees each compute "the next sequential number" independently, from the
+    # same specs/ directory and the same refs, so two features specified at once
+    # collide. Timestamps do not. This is the base layer ConfigManager falls back
+    # to when git-config.yml is absent (config.required: false above), so it must
+    # agree with config-template.yml's default, not upstream's.
+    branch_numbering: timestamp
     branch_template: ""
     branch_prefix: ""
     init_commit_message: "[Spec Kit] Initial commit"

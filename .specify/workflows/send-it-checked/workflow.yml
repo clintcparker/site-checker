@@ -1,15 +1,13 @@
 schema_version: "1.0"
 workflow:
-  id: "send-it"
-  name: "Spec to PR, unattended"
+  id: "send-it-checked"
+  name: "Spec to PR, unattended, with review and QA"
   version: "0.2.0"
   author: "clintcparker"
-  description: "specify → plan → tasks → screenshots → implement → screenshots → ship; no gates, ends in an open PR with before/after UI screenshots. Requires the `screenshots` and `ship` extensions."
+  description: "send-it plus staff review and QA, each with one fix-and-re-run pass, before shipping — with before/after UI screenshots. Requires the `screenshots`, `ship`, `staff-review` and `qa` extensions."
 
 requires:
-  # Same floor as yolo: 0.8.12 is the first release with engine-side resolution
-  # of ``integration: "auto"`` (spec-kit #2421). Older versions treat "auto" as
-  # a literal integration key and fail at dispatch.
+  # Same floor as yolo and send-it: engine-side ``integration: "auto"``.
   #
   # The `screenshots` extension is a hard dependency -- the two capture steps
   # fail at dispatch without it -- but it cannot be declared here: `requires`
@@ -17,7 +15,7 @@ requires:
   # validation error. See this workflow's README.
   speckit_version: ">=0.8.12"
   integrations:
-    # Advisory compatibility hint, not a closed set -- see workflows/yolo.
+    # Advisory compatibility hint, not a closed set.
     any:
       - "claude"
 
@@ -36,11 +34,6 @@ inputs:
     prompt: "Branch the pull request should target"
 
 steps:
-  # The before_specify hook (speckit.worktrees.create) creates the feature branch
-  # inside a new worktree and moves the session into it, leaving the primary checkout
-  # untouched on its current branch. Every step below therefore runs *in the worktree*
-  # — they are the same agent session, so the working directory carries forward. Do
-  # not add a step that assumes the primary checkout is on the feature branch.
   - id: specify
     command: speckit.specify
     integration: "{{ inputs.integration }}"
@@ -85,6 +78,48 @@ steps:
     input:
       args: "{{ inputs.spec }}"
 
+  # speckit.staff-review.run comes from the `staff-review` extension. It writes
+  # its report into FEATURE_DIR/reviews/, which is exactly the directory ship's
+  # pre-flight review check is gated on -- so this step is what makes the ship
+  # step's review gate real rather than skipped.
+  - id: review
+    command: speckit.staff-review.run
+    integration: "{{ inputs.integration }}"
+    input:
+      args: >-
+        UNATTENDED RUN — no user is present; never pause for input and never
+        ask a question.
+
+        Review the implementation against the spec and write the report to
+        FEATURE_DIR/reviews/ as usual.
+
+        If the verdict is CHANGES REQUIRED, fix every Blocker finding and then
+        re-run this review exactly once. After that second review, stop
+        reviewing whatever the verdict is and leave the report in place — the
+        ship step reports what remains.
+
+  # speckit.qa.run comes from the `qa` extension and writes into FEATURE_DIR/qa/,
+  # which gates ship's pre-flight QA check the same way.
+  - id: qa
+    command: speckit.qa.run
+    integration: "{{ inputs.integration }}"
+    input:
+      args: >-
+        UNATTENDED RUN — no user is present; never pause for input and never
+        ask a question.
+
+        Use CLI QA mode unless the project clearly already has browser
+        automation configured (Playwright, Puppeteer, Cypress, or Selenium
+        installed and usable without setup). Write the report to FEATURE_DIR/qa/
+        as usual.
+
+        If the verdict is FAILURES FOUND, fix the failing scenarios and re-run
+        QA exactly once. After that second run, stop whatever the verdict is
+        and leave the report in place — the ship step reports what remains.
+
+  # After qa, not after implement: review and qa each get one fix-and-re-run
+  # pass, so the tree at this point is the tree that ships. Capturing right
+  # after implement would document a state the pull request never contains.
   - id: screenshots-after
     command: speckit.screenshots.capture
     integration: "{{ inputs.integration }}"
@@ -99,10 +134,6 @@ steps:
         failure into the manifest notes, and let the workflow continue so ship
         can surface it in the pull request instead of silently dropping it.
 
-  # speckit.ship.run is provided by the `ship` extension, not by core Spec Kit.
-  # Its command reads $ARGUMENTS before anything else ("You MUST consider the
-  # user input before proceeding"), which is the designed lever for turning a
-  # safe-by-default interactive command into an unattended one.
   - id: ship
     command: speckit.ship.run
     integration: "{{ inputs.integration }}"
@@ -122,6 +153,12 @@ steps:
 
         If any tasks in tasks.md are still incomplete, do not stop — proceed
         and list the incomplete tasks in the pull request description.
+
+        The review and QA reports in FEATURE_DIR/reviews/ and FEATURE_DIR/qa/
+        have already had their single remediation pass. If either still carries
+        a non-passing verdict, warnings, or unresolved findings, do not stop:
+        proceed with the ship and summarize every surviving finding under a
+        "Known issues" heading in the pull request description.
 
         Prefer rebase over merge when synchronizing with the target branch.
 

@@ -1,5 +1,28 @@
 # Git Branching Workflow Extension
 
+> **This is a fork** of the `git` extension bundled with
+> [github/spec-kit](https://github.com/github/spec-kit), published from
+> [clintcparker/speckit-addons](https://github.com/clintcparker/speckit-addons)
+> as v1.1.0. Two deltas: `branch_numbering: timestamp` is honored when the caller
+> passes no flag (so the worktrees hook gets it), and the `before_specify` hook is
+> not declared (the worktrees extension creates the branch).
+>
+> **Install with `--from`, not by id.** `specify extension add git` resolves
+> bundled extensions before it ever reads a catalog, so it always installs
+> upstream's copy no matter what catalog priority you set:
+>
+> ```bash
+> specify extension add git --force --from \
+>   https://github.com/clintcparker/speckit-addons/releases/download/ext-git-v1.1.0/git-1.1.0.zip
+> ```
+>
+> `--from` does not verify a digest. Check it yourself against the `sha256` in
+> [extensions/catalog.json](../catalog.json):
+>
+> ```bash
+> curl -sL <url> | shasum -a 256
+> ```
+
 Git repository initialization, feature branch creation, numbering (sequential/timestamp), validation, remote detection, and auto-commit for Spec Kit.
 
 ## Overview
@@ -27,7 +50,6 @@ This extension provides Git operations as an optional, self-contained module. It
 | Event | Command | Optional | Description |
 |-------|---------|----------|-------------|
 | `before_constitution` | `speckit.git.initialize` | No | Init git repo before constitution |
-| `before_specify` | `speckit.git.feature` | No | Create feature branch before specification |
 | `before_clarify` | `speckit.git.commit` | Yes | Commit outstanding changes before clarification |
 | `before_plan` | `speckit.git.commit` | Yes | Commit outstanding changes before planning |
 | `before_tasks` | `speckit.git.commit` | Yes | Commit outstanding changes before task generation |
@@ -45,13 +67,22 @@ This extension provides Git operations as an optional, self-contained module. It
 | `after_analyze` | `speckit.git.commit` | Yes | Auto-commit after analysis |
 | `after_taskstoissues` | `speckit.git.commit` | Yes | Auto-commit after issue sync |
 
+This fork deliberately omits `before_specify`: the `worktrees` extension creates
+the feature branch inside the worktree at that same hook point, so declaring it
+here too would create the branch twice. `speckit.git.feature` is still installed
+and still callable directly (e.g. from another hook or by hand) — it's just not
+wired to a hook in this manifest.
+
 ## Configuration
 
 Configuration is stored in `.specify/extensions/git/git-config.yml`:
 
 ```yaml
 # Branch numbering strategy: "sequential" or "timestamp"
-branch_numbering: sequential
+# Defaults to timestamp in this fork (upstream default: sequential): parallel
+# worktrees each compute "the next sequential number" independently, from the
+# same specs/ directory and refs, so two features specified at once collide.
+branch_numbering: timestamp
 
 # Optional branch name template. Leave empty for the default "{number}-{slug}".
 # Supported tokens: {author}, {app}, {number}, {slug}; {slug} must not appear
@@ -86,9 +117,20 @@ For simple namespace-only customization, `branch_prefix` is also accepted as a s
 
 ## Installation
 
+As noted at the top of this README, `specify extension add git` installs
+spec-kit's bundled copy, not this fork — install with `--from` instead:
+
 ```bash
-# Install the bundled git extension (no network required)
-specify extension add git
+specify extension add git --force --from \
+  https://github.com/clintcparker/speckit-addons/releases/download/ext-git-v1.1.0/git-1.1.0.zip
+```
+
+`--from` downloads don't go through catalog resolution, so no digest is
+verified automatically. Check it yourself against the `sha256` in
+[extensions/catalog.json](../catalog.json):
+
+```bash
+curl -sL <url> | shasum -a 256
 ```
 
 ## Disabling

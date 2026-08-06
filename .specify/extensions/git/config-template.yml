@@ -2,7 +2,11 @@
 # Copied to .specify/extensions/git/git-config.yml on install
 
 # Branch numbering strategy: "sequential" (001, 002, ...) or "timestamp" (YYYYMMDD-HHMMSS)
-branch_numbering: sequential
+#
+# Defaults to timestamp in this fork: parallel worktrees each compute "the next
+# sequential number" independently, from the same specs/ directory and the same
+# refs, so two features specified at once collide on 007. Timestamps do not.
+branch_numbering: timestamp
 
 # Optional branch name template. Leave empty for the default "{number}-{slug}".
 # Supported tokens: {author}, {app}, {number}, {slug}

@@ -10,6 +10,131 @@ installed:
 settings:
   auto_execute_hooks: true
 hooks:
+  before_specify:
+  - extension: worktrees
+    command: speckit.worktrees.create
+    enabled: true
+    optional: false
+    priority: 20
+    prompt: Execute speckit.worktrees.create?
+    description: Create the feature branch inside a new worktree and work there
+    condition: null
+  after_specify:
+  - extension: worktrees
+    command: speckit.worktrees.create
+    enabled: false
+    optional: false
+    priority: 10
+    prompt: Execute speckit.worktrees.create?
+    description: Auto-spawn a worktree after a new feature is specified (superseded
+      by the before_specify hook)
+    condition: null
+  - extension: companion
+    command: speckit.companion.after-specify
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.companion.after-specify?
+    description: Record specify completion (currentStep=specify, status=specified)
+      into .spec-context.json
+    condition: null
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Commit specification changes?
+    description: Auto-commit after specification
+    condition: null
+  after_plan:
+  - extension: companion
+    command: speckit.companion.after-plan
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.companion.after-plan?
+    description: Record plan completion (currentStep=plan, status=planned) into .spec-context.json
+    condition: null
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Commit plan changes?
+    description: Auto-commit after implementation planning
+    condition: null
+  after_tasks:
+  - extension: companion
+    command: speckit.companion.after-tasks
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.companion.after-tasks?
+    description: Record tasks completion (currentStep=tasks, status=ready-to-implement)
+      into .spec-context.json
+    condition: null
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Commit task changes?
+    description: Auto-commit after task generation
+    condition: null
+  after_implement:
+  - extension: ship
+    command: speckit.ship.run
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Ship this feature?
+    description: Runs pre-flight checks, syncs branches, generates changelog, and
+      creates PR
+    condition: null
+  - extension: companion
+    command: speckit.companion.after-implement
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.companion.after-implement?
+    description: Per-task journaling on implement (currentStep=implement; status=implemented
+      when all tasks checked)
+    condition: null
+  - extension: staff-review
+    command: speckit.staff-review.run
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Run staff-level code review?
+    description: Reviews implementation changes against spec for correctness, security,
+      and quality
+    condition: null
+  - extension: qa
+    command: speckit.qa.run
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Run QA testing?
+    description: Validates acceptance criteria through browser-driven or CLI-based
+      testing
+    condition: null
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Commit implementation changes?
+    description: Auto-commit after implementation
+    condition: null
+  after_init:
+  - extension: brownfield
+    command: speckit.brownfield.scan
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Scan this existing project to customize spec-kit configuration?
+    description: Auto-scan project after spec-kit init to detect tech stack and conventions
+    condition: null
   before_constitution:
   - extension: git
     command: speckit.git.initialize
@@ -18,23 +143,6 @@ hooks:
     priority: 10
     prompt: Execute speckit.git.initialize?
     description: Initialize Git repository before constitution setup
-    condition: null
-  before_specify:
-  - extension: git
-    command: speckit.git.feature
-    enabled: false
-    optional: false
-    priority: 10
-    prompt: Execute speckit.git.feature?
-    description: Create feature branch before specification (superseded by worktrees)
-    condition: null
-  - extension: worktrees
-    command: speckit.worktrees.create
-    enabled: true
-    optional: false
-    priority: 20
-    prompt: Execute speckit.worktrees.create?
-    description: Create the feature branch inside a new worktree and work there
     condition: null
   before_clarify:
   - extension: git
@@ -108,33 +216,6 @@ hooks:
     prompt: Commit constitution changes?
     description: Auto-commit after constitution update
     condition: null
-  after_specify:
-  - extension: git
-    command: speckit.git.commit
-    enabled: true
-    optional: true
-    priority: 10
-    prompt: Commit specification changes?
-    description: Auto-commit after specification
-    condition: null
-  - extension: worktrees
-    command: speckit.worktrees.create
-    enabled: false
-    optional: false
-    priority: 10
-    prompt: Execute speckit.worktrees.create?
-    description: Auto-spawn a worktree after a new feature is specified (superseded
-      by the before_specify hook)
-    condition: null
-  - extension: companion
-    command: speckit.companion.after-specify
-    enabled: true
-    optional: false
-    priority: 10
-    prompt: Execute speckit.companion.after-specify?
-    description: Record specify completion (currentStep=specify, status=specified)
-      into .spec-context.json
-    condition: null
   after_clarify:
   - extension: git
     command: speckit.git.commit
@@ -143,86 +224,6 @@ hooks:
     priority: 10
     prompt: Commit clarification changes?
     description: Auto-commit after spec clarification
-    condition: null
-  after_plan:
-  - extension: git
-    command: speckit.git.commit
-    enabled: true
-    optional: true
-    priority: 10
-    prompt: Commit plan changes?
-    description: Auto-commit after implementation planning
-    condition: null
-  - extension: companion
-    command: speckit.companion.after-plan
-    enabled: true
-    optional: false
-    priority: 10
-    prompt: Execute speckit.companion.after-plan?
-    description: Record plan completion (currentStep=plan, status=planned) into .spec-context.json
-    condition: null
-  after_tasks:
-  - extension: git
-    command: speckit.git.commit
-    enabled: true
-    optional: true
-    priority: 10
-    prompt: Commit task changes?
-    description: Auto-commit after task generation
-    condition: null
-  - extension: companion
-    command: speckit.companion.after-tasks
-    enabled: true
-    optional: false
-    priority: 10
-    prompt: Execute speckit.companion.after-tasks?
-    description: Record tasks completion (currentStep=tasks, status=ready-to-implement)
-      into .spec-context.json
-    condition: null
-  after_implement:
-  - extension: git
-    command: speckit.git.commit
-    enabled: true
-    optional: true
-    priority: 10
-    prompt: Commit implementation changes?
-    description: Auto-commit after implementation
-    condition: null
-  - extension: ship
-    command: speckit.ship.run
-    enabled: true
-    optional: true
-    priority: 10
-    prompt: Ship this feature?
-    description: Runs pre-flight checks, syncs branches, generates changelog, and
-      creates PR
-    condition: null
-  - extension: companion
-    command: speckit.companion.after-implement
-    enabled: true
-    optional: false
-    priority: 10
-    prompt: Execute speckit.companion.after-implement?
-    description: Per-task journaling on implement (currentStep=implement; status=implemented
-      when all tasks checked)
-    condition: null
-  - extension: staff-review
-    command: speckit.staff-review.run
-    enabled: true
-    optional: true
-    priority: 10
-    prompt: Run staff-level code review?
-    description: Reviews implementation changes against spec for correctness, security,
-      and quality
-    condition: null
-  - extension: qa
-    command: speckit.qa.run
-    enabled: true
-    optional: true
-    priority: 10
-    prompt: Run QA testing?
-    description: Validates acceptance criteria through browser-driven or CLI-based
-      testing
     condition: null
   after_checklist:
   - extension: git
@@ -250,13 +251,4 @@ hooks:
     priority: 10
     prompt: Commit after syncing issues?
     description: Auto-commit after tasks-to-issues conversion
-    condition: null
-  after_init:
-  - extension: brownfield
-    command: speckit.brownfield.scan
-    enabled: true
-    optional: true
-    priority: 10
-    prompt: Scan this existing project to customize spec-kit configuration?
-    description: Auto-scan project after spec-kit init to detect tech stack and conventions
     condition: null
