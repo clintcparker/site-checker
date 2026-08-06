@@ -1,16 +1,18 @@
 mod check;
 mod commands;
 mod engine;
+mod lock;
 mod model;
 mod store;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use tauri::Manager;
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 use commands::AppState;
 use engine::Engine;
+use lock::SharedStore;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -24,10 +26,15 @@ pub fn run() {
             let path = app.path().app_config_dir()?.join("sites.json");
             let loaded = store::load(path);
 
-            let store = Arc::new(Mutex::new(loaded.store));
-            let engine = Engine::new(app.handle().clone(), Arc::clone(&store));
+            let store = SharedStore::new(app.handle().clone(), loaded.store);
+            let engine = Engine::new(app.handle().clone(), store.clone());
 
-            let sites = store.lock().unwrap().list();
+            // A warning raised by *this* lock would be dropped: the window's JS
+            // has not registered its `store-warning` listener yet and Tauri
+            // events have no replay. That is inert rather than a missing case —
+            // the store was constructed on the line above and cannot have been
+            // poisoned yet. Noted so a future reader doesn't take it for a gap.
+            let sites = store.lock().list();
             engine.start_all(sites);
 
             let mut warning = loaded.warning;

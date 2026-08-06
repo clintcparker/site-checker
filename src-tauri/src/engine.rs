@@ -5,8 +5,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
 
 use crate::check::{build_client, check_url};
+use crate::lock::{self, SharedStore};
 use crate::model::{Method, Site, StatusEvent};
-use crate::store::Store;
 
 /// Upper bound on the startup offset. Keeps N sites on a shared interval from
 /// all firing on the same second without delaying the first result much.
@@ -22,12 +22,12 @@ pub struct Engine {
 struct Inner {
     app: AppHandle,
     client: reqwest::Client,
-    store: Arc<Mutex<Store>>,
+    store: SharedStore,
     tasks: Mutex<HashMap<String, tauri::async_runtime::JoinHandle<()>>>,
 }
 
 impl Engine {
-    pub fn new(app: AppHandle, store: Arc<Mutex<Store>>) -> Self {
+    pub fn new(app: AppHandle, store: SharedStore) -> Self {
         Self {
             inner: Arc::new(Inner {
                 app,
@@ -53,7 +53,13 @@ impl Engine {
         // One critical section: a concurrent start for the same id cannot
         // slip between the abort and the insert and leave an untracked task
         // running forever.
-        let mut tasks = self.inner.tasks.lock().unwrap();
+        //
+        // The recovery flag is discarded deliberately, not by oversight: which
+        // checks are running is ephemeral by design (Constitution II), rebuilt
+        // at every launch, and every scheduling call replaces rather than
+        // accumulates. A recovered registry names no consequence the user could
+        // act on, so FR-005 keeps it silent.
+        let mut tasks = lock::recover(&self.inner.tasks).0;
         if let Some(handle) = tasks.remove(&id) {
             handle.abort();
         }
@@ -66,7 +72,11 @@ impl Engine {
     /// Aborts the task. A check already in flight may still emit one last
     /// event; the UI ignores events for sites it no longer has.
     pub fn stop(&self, id: &str) {
-        if let Some(handle) = self.inner.tasks.lock().unwrap().remove(id) {
+        // Silent recovery for the same reason as `start` — the registry is
+        // ephemeral and rebuilt every launch (FR-005). Bound to a `let` so the
+        // guard is released before `abort`, rather than held across it.
+        let removed = lock::recover(&self.inner.tasks).0.remove(id);
+        if let Some(handle) = removed {
             handle.abort();
         }
     }
@@ -112,7 +122,7 @@ impl Inner {
     /// The lock is taken and released synchronously — never held across an
     /// `.await`, which would make this task non-`Send`.
     fn persist_get_fallback(&self, id: &str) {
-        let mut store = self.store.lock().unwrap();
+        let mut store = self.store.lock();
         if let Some(mut site) = store.get(id) {
             site.method_override = Some(Method::Get);
             // A write failure here is not worth a banner: the in-memory value
