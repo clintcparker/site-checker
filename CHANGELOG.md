@@ -2,6 +2,75 @@
 
 All notable changes to Site Checker are recorded here.
 
+## Concurrency & robustness hardening — 2026-08-06
+
+The three actionable items from roadmap section 1, all in the Rust core. The
+headline is that a panic inside the app no longer bricks it: today one fault
+while the site list is locked poisons that lock and cascades a panic into every
+later command, so the window keeps ticking status updates while refusing to add,
+edit, delete, or even list anything until relaunch. As with the feature before
+it, no frontend file is touched, no dependency is added, and nothing about the
+on-disk shape or the IPC contract changes.
+
+Spec: [`specs/20260806-120353-concurrency-hardening/spec.md`](specs/20260806-120353-concurrency-hardening/spec.md) ·
+Plan: [`specs/20260806-120353-concurrency-hardening/plan.md`](specs/20260806-120353-concurrency-hardening/plan.md) ·
+Tasks: [`specs/20260806-120353-concurrency-hardening/tasks.md`](specs/20260806-120353-concurrency-hardening/tasks.md) ·
+Research: [`research.md`](specs/20260806-120353-concurrency-hardening/research.md) ·
+Source: section 1 of the roadmap. None of the three was reachable from the
+shipped window — the point is that the core stops relying on the window to avoid
+states it permits.
+
+### Fixed
+
+- **One internal panic no longer disables the whole app.** Ten
+  `Mutex::lock().unwrap()` call sites meant a panic inside any critical section
+  poisoned that lock, and every later command panicked on contact with it. The
+  fix is not ten call-site edits: `SharedStore` now wraps `Arc<Mutex<Store>>`
+  with no accessor for the raw mutex, so a store lock *cannot* be taken
+  un-recovered. Recovery is `PoisonError::into_inner()` — which preserves
+  whatever the interrupted operation left behind rather than resetting the list
+  — plus `Mutex::clear_poison()`, which makes the poison one-shot so the user
+  gets one banner per fault instead of one per subsequent action. The two
+  task-registry locks and the startup-warning lock call the same `lock::recover`
+  helper directly and discard its flag: recovering them is required, warning
+  about them is not, because which checks are running is ephemeral by design and
+  rebuilt every launch.
+- **A refused add no longer leaves a ghost row.** `Store::add` gained a
+  duplicate-id refusal in the previous feature, but `add_site` funnelled every
+  `Store::add` error into `warn_on_write_failure` and returned `Ok` regardless.
+  A refusal therefore surfaced as "could not be saved" — a message that promises
+  the change is still there, just un-persisted — while the window added the row
+  and a timer started checking a site that was in no list, until it vanished at
+  the next launch. A two-variant `AddError` lets the shell tell the two apart:
+  a refusal returns `Err` with no row, no timer, and no banner, while a genuine
+  write failure keeps today's behaviour exactly.
+- **Two overlapping edits to one site can no longer discard each other.**
+  `update_site` took the store lock twice — once to read `method_override`, once
+  to write — so a second edit that began before the first finished decided from
+  the same stale snapshot and silently overwrote it. The concrete loss was the
+  app's memory of which request method a site needs, learned at the cost of an
+  extra failed request against the user's site. The read-decide-write now lives
+  inside `Store::replace`, where a single `&mut self` borrow makes the
+  interleaving impossible by construction rather than by call-site discipline.
+
+### Technical Notes
+
+- One module added, `src-tauri/src/lock.rs`, holding `recover` as a Tauri-free
+  generic function so poison recovery is unit-testable without a `State`.
+- The lock-site count goes 10 → 9: collapsing `update_site`'s two acquisitions
+  into one is what removes the tenth.
+- No dependency added, runtime or dev. Poison recovery is `std::sync` only;
+  `tauri`'s `test` feature was considered and declined.
+- `AddError`, `Replaced`, and `SharedStore` are internal Rust types that never
+  cross the IPC boundary — the commands map them back to the existing
+  `Result<Site, String>` and `Result<(), String>` shapes, so the frontend
+  contract is byte-identical and `src/` is untouched.
+- Only two user-visible changes are permitted by the spec and only two were
+  made: the poison-recovery warning, which reuses the existing banner rather
+  than a new mechanism, and the reworded refusal message.
+- Gate at merge: 55 Rust tests passing (up from 42), 30 frontend tests
+  unchanged, `cargo clippy -- -D warnings` clean.
+
 ## Durability & data integrity — 2026-08-06
 
 The three items from roadmap section 1, all in the Rust core. The headline is
