@@ -1,0 +1,16 @@
+{
+  "workflow": "speckit",
+  "specName": "robustness",
+  "branch": "main",
+  "currentStep": "tasks",
+  "status": "ready-to-implement",
+  "history": [
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-08-06T00:52:04.057Z"
+    }
+  ]
+}

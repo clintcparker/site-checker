@@ -2,6 +2,88 @@
 
 All notable changes to Site Checker are recorded here.
 
+## Robustness — 2026-08-05
+
+Five small correctness wins from the v1 review's Minor findings. One was a real
+(if rare) bug; the rest close windows that were reachable but harmless, or
+latent. No Rust source is touched, no dependency is added, and nothing about
+`sites.json` or the IPC contract changes.
+
+Tasks: [`specs/002-robustness/tasks.md`](specs/002-robustness/tasks.md) ·
+Source: section 1 of the roadmap. There is no `spec.md` or `plan.md` — the
+roadmap section named the file, the function, and the symptom for each item, so
+it served as the spec directly.
+
+### Fixed
+
+- **A status event arriving during startup is no longer dropped.** `src/main.ts`
+  registered `onSiteStatus` / `onStoreWarning` only after `await mountAutostart()`
+  and `await getWarning()`. Tauri events have no replay, so anything emitted in
+  that window was gone. Both registrations now run before every other `await` in
+  `main()`. This is the one item the v1 review called a real bug (US1).
+- **A row returns to Pending the moment its URL changes.** `upsertSite` updated
+  `sites` but never `statuses`, so editing a good URL to a bad one kept showing
+  a green dot until the next check landed — the UI claiming a confirmation it
+  did not have. The stale status is now dropped on a URL change, and only on a
+  URL change: label-only and interval-only edits keep the dot, because that
+  result is still about that URL (US2).
+- **Double-click can no longer save or delete twice.** The submit handler and
+  the per-row Delete in `src/form.ts` had no in-flight guard. Both now disable
+  their button around the awaited call and return early if it is already
+  disabled. A failed save re-enables in a `finally`, so a rejection stays
+  retryable (US3).
+
+### Changed
+
+- **The interval field is bounded at both ends.** `index.html`'s `#site-interval`
+  gains `max="86400"` and `src/form.ts`'s clamp gains a matching ceiling, so a
+  pasted 21-digit number is clamped at the source instead of failing `u64`
+  deserialization at the IPC boundary. The floor behaviour is unchanged. 86400
+  is a product guardrail chosen here, not a protocol limit — the backend still
+  enforces only `MIN_INTERVAL_SECS` (US4).
+- **A missing `#autostart` element degrades to a banner instead of a dead page.**
+  `mountAutostart`'s `querySelector(...)!` meant that if the element ever went
+  missing, the `catch` block's own `checkbox.disabled = true` threw a second
+  time and aborted the rest of `main()`. It now early-returns with a banner,
+  leaving `catch` operating on a checkbox known to exist. Latent only — the
+  element is static in `index.html` (US5).
+
+### Added
+
+- `src/form.test.ts` — a DOM unit test over `form.ts`, following
+  `render.test.ts`'s local-fixture style with `./api` stubbed by deferred
+  promises so the in-flight window is inspectable. Covers the submit and delete
+  guards, the retryable failure path, Add-vs-Edit dispatch, and the clamp table
+  (floor, in-range, ceiling, empty, non-numeric).
+- `src/main.test.ts` — coverage for the three `main.ts` stories, which had none.
+  Importing `main.ts` *is* running startup (it calls `main()` at module load),
+  so the test stubs `./api` and mounts a fixture DOM first. US1 is pinned by
+  mock `invocationCallOrder` — that both listeners register before any startup
+  IPC call, which is the ordering property, not merely that they register. US2
+  is pinned in all four directions: URL change drops the status; label-only,
+  interval-only, and first-add do not. US5 is pinned by omitting `#autostart`
+  from the fixture, so every other assertion in the file doubles as proof that
+  a missing control no longer aborts `main()`.
+- Frontend tests: 12 → 30.
+
+### Technical Notes
+
+- The guards check `disabled` explicitly rather than relying on the browser
+  refusing to click a disabled button: this handler also runs for a programmatic
+  submit, which never consults `disabled`.
+- The delete guard deliberately re-enables only on the failure path. On success
+  the row — and its button — is removed by `onDeleted`.
+- `upsertSite` compares two backend-normalized URLs. `addSite`/`updateSite`
+  resolve to the saved `Site` after `normalize_url`, so a cosmetic difference
+  the backend already collapsed cannot false-positive into a spurious reset.
+- 86400 now lives in three places that must stay in sync: `form.ts`'s constant,
+  `index.html`'s `max`, and the ceiling case in `form.test.ts`.
+- Every assertion added here was confirmed to fail against the pre-fix code
+  before being kept — the five guard tests, the clamp ceiling, the URL-change
+  reset, the missing-`#autostart` banner, and the listener ordering.
+- Quality gates: `cargo test` (29 passing), `pnpm test` (30 passing),
+  `cargo clippy -- -D warnings` (clean), `pnpm build` (clean).
+
 ## Scaffold Cleanup — 2026-08-05
 
 Removes the residue `create-tauri-app` left behind and sharpens two imprecise
