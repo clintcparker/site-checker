@@ -1,0 +1,81 @@
+{
+  "feature": "002-robustness",
+  "mode_captured": ["before", "after"],
+  "baseline": "captured",
+  "base_ref": "main @ 1843ae3",
+  "after_ref": "20260805-180731-robustness @ 0d7c3e0",
+  "captured_at": "2026-08-05T18:03:00-05:00",
+  "after_captured_at": "2026-08-05T18:28:00-05:00",
+  "unattended": true,
+
+  "backup": true,
+  "backup_note": "Both runs moved the user's real sites.json aside as sites.json.shots-backup, wrote the seed below in its place, and restored the real file at the end. The 'after' run verified the restore three ways: the .shots-backup was still present at teardown, the restored file is byte-identical (sha 7150bef8...) to an out-of-tree safety copy taken before the run, and no .shots-backup remains in the app-support directory. 5 real sites restored.",
+
+  "sizes": {
+    "default": "720x480",
+    "narrow": "480x320"
+  },
+  "size_note": "default is the shipped size from src-tauri/tauri.conf.json; narrow is the configured minWidth/minHeight floor. PNGs are 2x Retina (1440x960 and 960x640) because the capture display is HiDPI.",
+
+  "seed_sites": [
+    { "id": "shots-up",      "url": "https://example.com",  "label": "Example",  "interval_secs": 60 },
+    { "id": "shots-down",    "url": "https://down.invalid", "label": "Never Up", "interval_secs": 60 },
+    { "id": "shots-nolabel", "url": "https://example.org",                       "interval_secs": 300 }
+  ],
+  "seed_rationale": "Three sites chosen to put every state this feature touches on screen at once. shots-up renders the Up dot; shots-down uses a .invalid TLD that never resolves, so it renders Down without waiting on a real outage; shots-nolabel has no label and a different interval, which exercises render.ts's label/URL fallback and gives the interval field a non-default value to show in Edit mode. The 'after' run reused this seed byte-for-byte.",
+
+  "views": [
+    {
+      "slug": "site-list",
+      "why": "The status table is the surface US1 and US2 both change. US1 (hoisting the onSiteStatus/onStoreWarning listeners above the awaited startup IPC) must leave this view pixel-identical in the ordinary case -- a diff here is a regression, not a feature. US2 (dropping a stale status when a URL is edited) changes which dot a row shows, so the Up/Down/label/no-label rows are the reference.",
+      "reached_by": "App launch against the seed, ~20s wait so the 0-10s jittered first check resolves Pending into Up/Down.",
+      "after_result": "Identical to baseline apart from the Last checked column. US1's reorder produced no visible change, which is the intended outcome: all three rows still resolve Pending -> Up/Down on launch, and no status was lost or duplicated by registering the listeners before listSites()."
+    },
+    {
+      "slug": "edit-form",
+      "why": "The form in Edit mode is the surface for US3 and US4. US3 adds an in-flight guard that disables #site-submit during the awaited call, so the enabled Save/Cancel pair is the before-state. US4 adds max=\"86400\" to #site-interval; the field's rendered appearance is the before-state (a bare number input with min only).",
+      "reached_by": "Clicking the Edit button on row 1 (Example / https://example.com), which populates the form and swaps Add for Save + Cancel.",
+      "after_result": "Identical to baseline. Both changes are correctly invisible at rest: US3's disabled state exists only for the duration of an in-flight save, and US4's max attribute does not alter how a number input renders. Neither is screenshot-observable; T013's unit tests are the real evidence for both. What this pair does prove is the absence of layout drift from the index.html edit."
+    },
+    {
+      "slug": "empty-state",
+      "why": "Covers the #empty paragraph plus the Add-mode form and the footer autostart checkbox that US5 null-guards. Also the tightest layout case: at 480x320 the form wraps onto two lines and the footer sits right at the window edge, so it is the most sensitive detector of accidental layout drift from US4's index.html edit.",
+      "reached_by": "Deleting all three seeded rows through the UI (per-row Delete), which is also the real user path into this state.",
+      "after_result": "Identical to baseline at both sizes, including the 480x320 wrap point. US5's null guard does not fire here because #autostart is present, so the checkbox renders checked as before -- the guard only matters when the element is absent, which T013 covers. The three UI deletes also exercised US3's per-row delete guard end to end: each row disappeared on the first click with no double-fire and no stranded disabled button, and sites.json ended at []."
+    }
+  ],
+
+  "not_captured": [
+    {
+      "view": "store-warning banner",
+      "why": "Reaching #banner requires a deliberately corrupt sites.json, and no ROADMAP section 1 item changes the banner's markup or copy. US1 only changes when onStoreWarning is registered, not what it renders. Judged out of scope for a 3-view budget. Re-confirmed at 'after' time: the implementation does not touch showBanner's markup, so nothing was added."
+    },
+    {
+      "view": "inline form error (#site-error)",
+      "why": "US3's failure path must keep the inline error visible, but triggering it means submitting an invalid URL and capturing a transient state. The unit tests in T013 assert this directly and are a better regression net than a screenshot. Skipped deliberately in both modes."
+    },
+    {
+      "view": "in-flight disabled Save button (US3)",
+      "why": "Considered for the 'after' run and rejected. The disabled window lasts exactly as long as one addSite/updateSite IPC round trip -- single-digit milliseconds against a local backend -- so a synthetic click plus a screencapture cannot reliably land inside it, and a screenshot that misses the window would read as evidence the guard is absent. form.test.ts asserts the disabled state directly and deterministically."
+    }
+  ],
+
+  "notes": [
+    "FEATURE_DIR judgement call: .specify/scripts/bash/check-prerequisites.sh reported specs/001-scaffold-cleanup, which is stale -- .specify/feature.json still pointed at the shipped-and-archived 001 feature. The live feature is 002-robustness (tasks.md written 2026-08-05 17:52, status ready-to-implement, no implementation started). Captured against 002. Note that 002 has no spec.md and no plan.md by design: its tasks.md names docs/ROADMAP.md section 1 as the spec, so UI-relevance was judged from tasks.md and ROADMAP section 1 instead.",
+    "UI-relevant: yes. All five stories are frontend-only -- src/main.ts (US1, US2, US5), src/form.ts (US3, US4), index.html (US4). Three of the five change user-visible behavior, so a baseline is worth having even though most of the intended diff is 'nothing should change'.",
+    "Captured on the base branch (main @ 1843ae3) before T001's worktree exists. specs/002-robustness/ was untracked at capture time; this commit is its first.",
+    "Pre-existing leaked state from an earlier run, repaired before capture: a pnpm tauri dev process tree from the sibling worktree site-checker--20260805-150909-cleanup-scaffold-leftovers was still running and holding Vite's strictPort 1420, and ~/Library/Application Support/com.clintparker.site-checker/sites.json still held that run's seed data instead of the user's real sites. Both were cleaned up here.",
+    "Data-safety incident: sites.json.shots-backup (holding the user's 5 real sites) disappeared from the app-support directory mid-run, between two reads about 60 seconds apart. Nothing in this repo references that path outside the skill docs, so the deleter was external to this run. The file was reconstructed verbatim from its contents read moments earlier, an out-of-tree safety copy was written to /tmp/site-checker-sites-SAFETY-COPY.json, and the final restore was diffed against that copy and confirmed identical. Worth knowing for the 'after' run: do not assume a pre-existing .shots-backup will still be there later in the same run.",
+    "Environment: capture works from a GUI-attached local VS Code.app session. It does NOT work from a VS Code tunnel/remote-server session, where screencapture and System Events are both denied by TCC -- that is what blocked the 001 run. In this session screencapture and Accessibility were both available, so all six images are real captures.",
+    "Window control: osascript could not resize or read window geometry (System Events error -1719, no assistive access for osascript), so geometry came from CGWindowListCopyWindowInfo and resize/raise/click came from a small compiled Swift helper in /tmp using the Accessibility and CoreGraphics APIs. No application code, config, or repo file was modified to take these screenshots.",
+    "Captures use screencapture -l <windowid>, so each PNG is exactly the window with no desktop background and no shadow padding. The app was raised to the front first: synthetic clicks are positional and would otherwise land on whatever window is on top.",
+    "The 'Last checked' column reads a different relative time in each image (33s ago, 58s ago, 1m ago...). That is expected drift, not a diff -- ignore that column when comparing before/after.",
+
+    "AFTER RUN (2026-08-05 18:24-18:29, unattended): captured from worktree site-checker--20260805-180731-robustness at 0d7c3e0, which is main @ da424ea plus b2aa961 (the implementation) -- so the before/ images this manifest sits beside are the true parent-commit baseline, not a rebased approximation.",
+    "AFTER RUN -- app health: builds and starts clean. Rust is untouched by this feature, so the run reused the main checkout's warm cargo target via CARGO_TARGET_DIR (an env var on the dev process only; no repo file changed). Only the site-checker crate recompiled; the window appeared within ~10s and every seeded site resolved to Up/Down on the first check. No startup error, no store-warning banner, and no crash across the full 3-view / 6-image session including nine synthetic clicks.",
+    "AFTER RUN -- headline result: all three views are visually identical to their baselines at both sizes, modulo the Last checked column. For this feature that is a pass, not a null result. Four of the five stories (US1 listener hoist, US3 in-flight guards, US4 interval ceiling, US5 autostart null guard) are meant to be invisible when nothing goes wrong, so an unchanged screenshot is the evidence that the hardening cost no layout or rendering change. The screenshots are a smoke test here, not a diff -- T013's unit tests carry the behavioural proof.",
+    "AFTER RUN -- US2 (drop stale status on URL edit) is not represented in these images. Reaching it means editing a row's URL and photographing the row while it sits at Pending before the next jittered check lands, which is both racy and would have diverged the after/ seed state from the before/ baseline, breaking every other pair in the set. The reproducible seed was judged worth more than one extra transient view. main.test.ts asserts the statuses.delete branch directly, including the negative case where a label-only edit preserves the status.",
+    "AFTER RUN -- reused verbatim from the before pass so the pair is comparable: the same three seed sites, the same three views in the same order, the same 720x480 / 480x320 sizes, the same ~20s settle before the first capture, the same compiled Swift helper for resize/raise/click, and the same screencapture -l <windowid> capture path. Same physical display and scale factor, so all six after/ PNGs match their before/ counterparts in pixel dimensions exactly.",
+    "AFTER RUN -- teardown: the dev server was launched into its own process group (macOS has no setsid; perl setpgrp was used instead) and killed as a group. Verified afterwards that no site-checker, tauri dev, or vite process survived and that Vite's strictPort 1420 was released -- the specific leak this repo's previous runs left behind. The user's sites.json was then restored from .shots-backup and confirmed byte-identical to the pre-run out-of-tree safety copy."
+  ]
+}

@@ -27,7 +27,7 @@
       <input type="hidden" id="site-id" />
       <input id="site-url" type="text" placeholder="example.com" required />
       <input id="site-label" type="text" placeholder="Label (optional)" />
-      <input id="site-interval" type="number" min="10" step="1" value="60" />
+      <input id="site-interval" type="number" min="10" max="86400" step="1" value="60" />
       <button type="submit" id="site-submit">Add</button>
       <button type="button" id="site-cancel" hidden>Cancel</button>
       <p id="site-error" class="form-error" hidden></p>
