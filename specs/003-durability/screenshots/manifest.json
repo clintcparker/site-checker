@@ -1,6 +1,6 @@
 {
   "feature": "003-durability",
-  "mode_captured": ["before"],
+  "mode_captured": ["before", "after"],
   "backup": true,
   "sizes": { "default": "720x480", "narrow": "480x320" },
   "seed_sites": [
@@ -27,6 +27,19 @@
     "Checks were allowed to resolve before capture (~12s); no view here is about the Pending state, so Pending was deliberately not captured.",
     "Confirmed against the live file during this run: the added site persisted as \"url\": \"HTTPS://EXAMPLE.com\", so ROADMAP §1's US2 claim still describes the tree (an independent confirmation of tasks.md T003).",
     "The narrow (480x320) layout wraps the Add button below the input row in both views. That is the pre-existing baseline, not a defect introduced by this feature.",
-    "Window sized via System Events, whose size covers the whole window frame including the title bar, so the web content is marginally shorter than the 720x480/480x320 configured in tauri.conf.json. Consistent across before/after, so the comparison holds."
+    "Window sized via System Events, whose size covers the whole window frame including the title bar, so the web content is marginally shorter than the 720x480/480x320 configured in tauri.conf.json. Consistent across before/after, so the comparison holds.",
+
+    "--- AFTER RUN (unattended, 2026-08-06) ---",
+    "AFTER RUN was also unattended; no user present. Same two views, same two sizes, same seed_sites, same interaction as the baseline — the uppercase URL was typed into the real add form, not seeded.",
+    "US2 CONFIRMED, the headline result. The added row's primary text moved from HTTPS://EXAMPLE.com (before) to https://EXAMPLE.com (after): the scheme is lowercased and the host's uppercase EXAMPLE is left untouched, which is exactly the lowercases_only_the_scheme contract. Verified independently in the live store too — the site persisted as \"url\": \"https://EXAMPLE.com\".",
+    "US1 SUPPORTING EVIDENCE: after every save in this run, the data directory held only sites.json (plus the unrelated autostart.initialized) — no staging/temp artifact survived, matching a_successful_save_leaves_no_staging_file_behind. The site-list view is unchanged from baseline, which is the intended result: atomic save changed how the file is written, not what it contains.",
+    "The app builds and runs: cargo test on the implementation tree passed 42/42, and `pnpm tauri dev` compiled and launched in ~19s (warm cargo target). No build or startup defect to report.",
+    "TREE PROVENANCE: the implementation was still uncommitted in the worktree site-checker--20260806-102818-durability-and-data (modified src-tauri/src/model.rs and src-tauri/src/store.rs) while the before/ images were committed from the main checkout at the same commit, 00fd10c. The after/ images were therefore captured from the worktree — the only tree that contains the fix — and committed there. Both halves of the pair describe the same feature branch.",
+    "The narrow layout still wraps the Add button below the input row, unchanged from the baseline. Not a regression; noted again so a reviewer diffing the narrow pair does not read it as one.",
+    "CAPTURE MECHANICS (differ from the baseline's, though the resulting images are directly comparable): osascript in this session holds Automation but not Accessibility, so window resize, clicks, and keystrokes came from a compiled Swift helper using AXUIElementSetAttributeValue and CGEvent. Capture used `screencapture -l <windowid>` rather than `-R <rect>`, because another application's window occluded the app's screen region and a rect capture silently grabbed that window instead. Images are still exactly 720x480 and 480x320, matching the baseline.",
+    "Other applications repeatedly stole keyboard focus between steps, and synthetic key events go to whichever app is frontmost — one early attempt typed into another app and submitted nothing. The interaction was redone as a single guarded script that re-asserts frontmost before each event and retries until the store actually shows the new site, so the captured state is verified rather than assumed.",
+    "The first set of after/ images caught the window inactive (grey traffic lights) while the baseline shows an active window. They were recaptured with the window activated so the pair differs only in the thing under test, not in macOS window chrome.",
+    "Expected incidental differences in the pair: LAST CHECKED timestamps and the exact ordering of check completions vary run to run, since checks hit the real network and results are never persisted.",
+    "The user's real sites.json was backed up to sites.json.shots-backup, plus an out-of-tree safety copy, and restored at the end; the restored file was diffed byte-for-byte against the safety copy and is identical. The dev-server process group was killed and port 1420 verified free."
   ]
 }

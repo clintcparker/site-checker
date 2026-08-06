@@ -2,6 +2,89 @@
 
 All notable changes to Site Checker are recorded here.
 
+## Durability & data integrity — 2026-08-06
+
+The three items from roadmap section 1, all in the Rust core. The headline is
+that saving `sites.json` is now all-or-nothing: a crash mid-save can no longer
+truncate the file and cost the user their list. No frontend file is touched, no
+dependency is added, and nothing about the on-disk shape or the IPC contract
+changes.
+
+Spec: [`specs/003-durability/spec.md`](specs/003-durability/spec.md) ·
+Plan: [`specs/003-durability/plan.md`](specs/003-durability/plan.md) ·
+Tasks: [`specs/003-durability/tasks.md`](specs/003-durability/tasks.md) ·
+Source: section 1 of the roadmap. Unlike the two features before it, this one
+ran the full specify → plan → tasks cycle, so the mechanism decisions are
+recorded in [`research.md`](specs/003-durability/research.md) rather than left
+to implementation.
+
+### Fixed
+
+- **A crash mid-save can no longer truncate `sites.json`.** `Store::save` called
+  `std::fs::write` directly, which empties the file and then refills it — a
+  window in which a panic, a kill, or a dev-server restart left a truncated
+  file. The next launch parsed that as corrupt, showed the banner, and started
+  empty: graceful, but the last edit was gone. The write is now staged to a
+  sibling `sites.json.tmp`, flushed with `sync_all`, and published with
+  `std::fs::rename`, which is atomic within a filesystem — a reader sees either
+  the complete old file or the complete new one, never a mixture. Because `add`,
+  `update`, and `delete` all funnel through the one private `save`, this covers
+  every mutation and no caller moved (US1).
+  - The staging name is *fixed* rather than randomized, so repeated interrupted
+    saves reuse the one artifact instead of leaving an orphan per crash, and the
+    next successful save reclaims it. `load` opens only the path it was handed,
+    so an orphan is never mistaken for the site list.
+  - The honest limit, recorded in the code: this defends against the *process*
+    dying, because the kernel completes the rename whether or not we survive it.
+    It is not a power-loss guarantee — macOS `fsync` does not force the drive's
+    own write cache the way `F_FULLFSYNC` does, and the parent directory is
+    deliberately not synced.
+- **`Store::add` refuses an id it already holds.** It pushed unconditionally, so
+  two sites under one id would have made `get`/`update` hit the first while
+  `delete` removed both. The check runs *before* the push and before the save, so
+  a refusal leaves the in-memory list and the file agreeing. Unreachable from the
+  shipped app — `add_site` mints a fresh v4 UUID per site — and added so the
+  invariant lives at the layer that owns it rather than being a property of one
+  caller's id generator (US3).
+
+### Changed
+
+- **A typed-in scheme is now stored lowercase.** `HTTPS://example.com` persisted
+  verbatim, because `normalize_url` returns the user's own text rather than
+  `url::Url`'s serialization — deliberately, since that is what keeps
+  `example.com` yielding `https://example.com` and not `https://example.com/`.
+  `has_leading_scheme` became `leading_scheme_end`, returning the scheme's byte
+  index instead of a bool, so exactly the scheme slice is lowercased and the rest
+  of the input is passed through untouched: hosts, paths, and query values keep
+  their case, and a `HTTP://` inside a query string is not a leading scheme and is
+  left alone (US2).
+  - There is no migration. `load` does not call `normalize_url`, so a site already
+    stored as `HTTPS://…` keeps that value until the user next edits it. On that
+    edit it counts as a URL change under the existing rule, so the row drops to
+    Pending and `method_override` is cleared — one extra request to re-learn HEAD
+    support, once, for that site.
+- **A symlink at the `sites.json` path is now replaced rather than followed.** A
+  plain write followed the link and wrote through to its target; an atomic replace
+  cannot. Nothing is destroyed — the old target keeps every byte it held — but the
+  indirection is gone. Inherent to the fix, and the app never creates such a link.
+
+### Added
+
+- Seven `store.rs` tests covering the write path end to end: an interrupted save
+  leaving the previous list loadable, the staged copy holding the new contents
+  beside the live file, a successful save leaving nothing behind, repeated staging
+  never accumulating more than one artifact, a failed staging preserving the
+  previous file, a failed publication leaving exactly one orphan, and a stale
+  artifact from a crashed run being inert to both `load` and the next save. The
+  staging step is split out from `save` specifically so a test can stop a save at
+  the instant the guarantee is about, rather than racing a killed subprocess.
+- Two `store.rs` tests for the duplicate-id refusal, both asserting on a *reload*
+  rather than the in-memory list, which is what proves the refusal preceded any
+  write.
+- Four `model.rs` tests for the scheme table, including the guard that stops the
+  fix from being a lazy whole-string lowercase.
+- Rust tests 29 → 42. Frontend stays at 30 — this feature touches no frontend file.
+
 ## Robustness — 2026-08-05
 
 Five small correctness wins from the v1 review's Minor findings. One was a real

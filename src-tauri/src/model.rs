@@ -42,34 +42,55 @@ pub struct StatusEvent {
     pub reason: Option<String>,
 }
 
-/// True only for a `scheme://` prefix at the very start, where every character
+/// Byte index of the `://` ending a leading scheme, or `None` if there isn't
+/// one. A scheme counts only at the very start and only when every character
 /// before the `://` is ASCII alphanumeric or one of `+`, `-`, `.`. A bare
 /// `contains("://")` also matches a `://` inside a query string, which would
 /// stop a scheme-less URL from getting one.
-fn has_leading_scheme(s: &str) -> bool {
+///
+/// Returns the index rather than a bool so `normalize_url` can lowercase
+/// exactly the scheme and nothing else, without scanning the string twice. The
+/// index is safe to slice at: `find` returns a character boundary, and the
+/// character guard proves every byte before it is ASCII.
+fn leading_scheme_end(s: &str) -> Option<usize> {
     match s.find("://") {
-        Some(0) | None => false,
+        Some(0) | None => None,
         Some(i) => s[..i]
             .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.')),
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+            .then_some(i),
     }
 }
 
-/// Validate user input and add a scheme if one is missing.
+/// Validate user input, add a scheme if one is missing, and lowercase the
+/// scheme if one is present.
 ///
 /// Returns the user's own text (trimmed, scheme-prefixed) rather than the
 /// re-serialized `Url`, so `example.com` yields `https://example.com` and not
-/// `https://example.com/`.
+/// `https://example.com/`. That is why the lowercasing happens here on a slice
+/// of the input instead of by handing back `parsed`'s rendering — `url::Url`
+/// lowercases the scheme for free, but it would also put the trailing slash
+/// back. Only the scheme is touched: hosts are case-insensitive too, but
+/// rewriting them is more of the user's text than was asked for, and paths and
+/// query values are case-*sensitive*.
+///
+/// There is no migration. `load` does not call this, so a site already stored
+/// as `HTTPS://…` keeps that value until the user next edits it — and on that
+/// edit it counts as a URL change, so `main.ts`'s `upsertSite` drops the row to
+/// Pending and `update_site` clears `method_override`, costing one request to
+/// re-learn HEAD support. Surprising exactly once per affected site.
 pub fn normalize_url(input: &str) -> Result<String, String> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
         return Err("Enter a URL".to_string());
     }
 
-    let candidate = if has_leading_scheme(trimmed) {
-        trimmed.to_string()
-    } else {
-        format!("https://{trimmed}")
+    let candidate = match leading_scheme_end(trimmed) {
+        // `to_ascii_lowercase`, not `to_lowercase`: a scheme is ASCII by the
+        // rule `leading_scheme_end` enforces, and Unicode folding here would
+        // only mislead.
+        Some(i) => format!("{}{}", trimmed[..i].to_ascii_lowercase(), &trimmed[i..]),
+        None => format!("https://{trimmed}"),
     };
 
     let parsed = url::Url::parse(&candidate).map_err(|_| "Not a valid URL".to_string())?;
@@ -135,6 +156,41 @@ mod tests {
             normalize_url("example.com?next=http://x.dev").unwrap(),
             "https://example.com?next=http://x.dev"
         );
+    }
+
+    #[test]
+    fn lowercases_an_uppercase_scheme() {
+        assert_eq!(normalize_url("HTTPS://example.com").unwrap(), "https://example.com");
+        assert_eq!(
+            normalize_url("HtTp://example.com/health").unwrap(),
+            "http://example.com/health"
+        );
+    }
+
+    #[test]
+    fn lowercases_only_the_scheme() {
+        // The guard against a lazy `to_lowercase()` on the whole string, which
+        // would quietly corrupt case-sensitive paths and query values.
+        assert_eq!(
+            normalize_url("HTTP://Example.COM/Path?Q=1").unwrap(),
+            "http://Example.COM/Path?Q=1"
+        );
+        assert_eq!(normalize_url("https://EXAMPLE.com").unwrap(), "https://EXAMPLE.com");
+    }
+
+    #[test]
+    fn an_uppercase_scheme_in_a_query_is_left_alone() {
+        // The first `://` is inside the query, so this takes the prepend branch
+        // and the embedded scheme is not a leading scheme to lowercase.
+        assert_eq!(
+            normalize_url("example.com?next=HTTP://x.dev").unwrap(),
+            "https://example.com?next=HTTP://x.dev"
+        );
+    }
+
+    #[test]
+    fn rejects_a_non_http_scheme_regardless_of_case() {
+        assert!(normalize_url("FTP://example.com").is_err());
     }
 
     #[test]
