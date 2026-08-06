@@ -1,0 +1,30 @@
+{
+  "workflow": "speckit",
+  "specName": "Concurrency & Robustness Hardening",
+  "branch": "20260806-120325-section-1-docs",
+  "currentStep": "tasks",
+  "status": "ready-to-implement",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-08-06T19:06:53.542Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-06T19:19:59.103Z"
+    },
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-06T19:25:26.633Z"
+    }
+  ]
+}
