@@ -2,6 +2,83 @@
 
 All notable changes to Site Checker are recorded here.
 
+## Packaging & distribution — 2026-08-06
+
+Site Checker gets an install path. `brew install clintcparker/tap/site-checker`
+replaces "clone the repo, install two toolchains, and run `pnpm tauri build`",
+and publishing a version becomes pushing one annotated `v<MAJOR>.<MINOR>.<PATCH>`
+tag. **Nothing the application does changes** — `src/` and `src-tauri/src/` are
+untouched, and the test counts are unmoved at 55 Rust and 30 frontend.
+
+**Not yet live, and deliberately so.** What lands here is the machinery: the
+workflows, the cask template, the single version source, and the how-to. No
+`v1.0.0` exists, this repository is still private, and none of the seven
+credentials is set, so `brew install clintcparker/tap/site-checker` does not
+work today — an unauthenticated fetch of a private release asset returns 404.
+Two decisions that are the maintainer's alone gate the rest: making the
+repository public (which exposes its full history), and a $99/yr Apple Developer
+Program membership for signing and notarization. Until both are answered,
+FR-001, FR-006, FR-015, FR-027 and the runtime half of FR-005 stay deferred, and
+`docs/ROADMAP.md` §2 carries the reduced scope. Read this entry as "the pipeline
+is built and statically proven", not as "packaging shipped".
+
+Spec: [`specs/20260806-190127-packaging-and-distribution/spec.md`](specs/20260806-190127-packaging-and-distribution/spec.md) ·
+Plan: [`specs/20260806-190127-packaging-and-distribution/plan.md`](specs/20260806-190127-packaging-and-distribution/plan.md) ·
+Tasks: [`specs/20260806-190127-packaging-and-distribution/tasks.md`](specs/20260806-190127-packaging-and-distribution/tasks.md) ·
+Research: [`research.md`](specs/20260806-190127-packaging-and-distribution/research.md)
+
+### Added
+
+- **A Homebrew cask** — `install/homebrew/site-checker.rb`, the canonical
+  template, rendered by automation into `clintcparker/homebrew-tap` as
+  `Casks/site-checker.rb` and never written there by hand. A cask rather than a
+  formula because Site Checker ships an application bundle; the advertised
+  install line is unchanged either way, because Homebrew resolves a
+  tap-qualified name against both directories.
+- **The first mechanism in this project's history that can delete your site
+  list** — and it is opt-in. `brew uninstall` keeps `sites.json`;
+  `brew uninstall --zap` moves it to the Trash. The data directory appears in
+  exactly one stanza, and it is `zap`. That split, not discipline, is what makes
+  "config is sacred" hold across an uninstall path.
+- **`.github/workflows/release.yml`** — `preflight` → `test` → a two-architecture
+  `build` matrix → `release` → `homebrew`. Every job reaches `preflight` through
+  its `needs:` chain, so a malformed tag or a missing credential fails in seconds
+  having built nothing, published no release object, and left the tap untouched.
+  The tap is rendered from checksums of the assets *actually attached to the
+  release*, never from predicted names.
+- **`.github/workflows/ci.yml`** — the four gates the constitution names by hand
+  (`cargo test`, `cargo clippy -- -D warnings`, `pnpm test`, `pnpm build`) now run
+  on every push to `main` and every pull request. This repository had no CI at
+  all; three ship runs stayed green because the runs were disciplined about it,
+  not because anything enforced it.
+- **`.github/workflows/verify-install-channels.yml`** — daily, after every
+  release, and on demand: the assets resolve, the tap advertises the same version,
+  and (off the cron) a real `brew install` on a clean runner produces an app
+  Gatekeeper accepts. Catches the one failure a green release cannot: the
+  maintainer sees success, the user sees a broken install.
+- **[`docs/how-to/release.md`](docs/how-to/release.md)** — the procedure, the
+  one-time setup, and what to do when a release fails partway through. Committing
+  it required un-ignoring `docs/how-to/` specifically, as `docs/*` plus
+  `!docs/how-to/`; git will not re-include a file whose parent directory is
+  excluded, so the exact shape is load-bearing.
+
+### Changed
+
+- **Three version numbers became one, and it is machine-written.**
+  `tauri.conf.json`'s `version` key is deleted outright rather than synchronised,
+  so Tauri falls back to `Cargo.toml` — verified by building a stamped `9.9.9` and
+  reading it back out of `Info.plist`, not by trusting the documentation.
+  `Cargo.toml` and `package.json` now hold an inert `0.0.0` that `release.yml`
+  stamps from the tag, and a CI step fails any pull request that edits either
+  sentinel. That guard is what turns the single-source rule from a convention
+  into a guarantee.
+- **`bundle.targets` is `["app"]`.** Nothing distributes a DMG any more, and
+  building one calls `osascript` against the Finder, which blocks forever where
+  there is no interactive session. Reducing the default means a build that forgets
+  `--bundles app` still cannot reach it. `pnpm tauri build --bundles dmg` still
+  works locally.
+- **README leads with the install line** rather than the build instructions.
+
 ## Concurrency & robustness hardening — verification round 2 — 2026-08-06
 
 **No code change.** Nothing under `src-tauri/src/` or `src/` differs from what

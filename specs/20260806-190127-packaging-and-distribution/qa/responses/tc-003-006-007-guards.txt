@@ -1,0 +1,75 @@
+########## TC-003 — CI version sentinel ##########
+--- positive: real tree as committed ---
+OK   one version source, and it is an inert sentinel
+exit=0  (expect 0)
+
+--- negative A: Cargo.toml hand-bumped to 1.0.0 (quickstart Scenario 3) ---
+::error::src-tauri/Cargo.toml version must stay 0.0.0 — the release tag is the source of truth (see docs/how-to/release.md)
+exit=1  (expect 1)
+
+--- negative B: package.json hand-bumped ---
+::error::package.json version must stay 0.0.0 — the release tag is the source of truth (see docs/how-to/release.md)
+exit=1  (expect 1)
+
+--- negative C: a version key reintroduced into tauri.conf.json ---
+::error::src-tauri/tauri.conf.json must not carry a version key — Tauri falls back to Cargo.toml, which release.yml stamps from the tag
+exit=1  (expect 1)
+
+--- negative D: all three broken at once (accumulates, one exit) ---
+::error::src-tauri/Cargo.toml version must stay 0.0.0 — the release tag is the source of truth (see docs/how-to/release.md)
+::error::package.json version must stay 0.0.0 — the release tag is the source of truth (see docs/how-to/release.md)
+::error::src-tauri/tauri.conf.json must not carry a version key — Tauri falls back to Cargo.toml, which release.yml stamps from the tag
+exit=1  (expect 1, three ::error:: lines above)
+
+########## TC-006 — preflight tag validation ##########
+TAG                                EXPECT   GOT      VERDICT
+v1.0.0                             accept   accept   PASS
+v0.0.1                             accept   accept   PASS
+v12.34.567                         accept   accept   PASS
+v1.2.3-rc.1                        reject   reject   PASS
+v0.0.1-preflight-test              reject   reject   PASS
+v1.2                               reject   reject   PASS
+v1.2.3.4                           reject   reject   PASS
+v1.2.x                             reject   reject   PASS
+1.0.0                              accept   accept   PASS
+vv1.0.0                            reject   reject   PASS
+v1.2.3+build                       reject   reject   PASS
+                                   reject   reject   PASS
+nightly                            reject   reject   PASS
+v1..3                              reject   reject   PASS
+v 1.2.3                            reject   reject   PASS
+
+########## TC-007 — preflight one-time-setup probe ##########
+--- all seven unset (the real state of this repository today) ---
+::error::one-time setup missing: TAP_PUSH_TOKEN (see docs/how-to/release.md)
+::error::one-time setup missing: APPLE_CERTIFICATE (see docs/how-to/release.md)
+::error::one-time setup missing: APPLE_CERTIFICATE_PASSWORD (see docs/how-to/release.md)
+::error::one-time setup missing: APPLE_SIGNING_IDENTITY (see docs/how-to/release.md)
+::error::one-time setup missing: APPLE_API_ISSUER (see docs/how-to/release.md)
+::error::one-time setup missing: APPLE_API_KEY_ID (see docs/how-to/release.md)
+::error::one-time setup missing: APPLE_API_KEY (see docs/how-to/release.md)
+exit=1  (expect 1)
+elapsed=0s  (SC-005 budget: 60s)
+
+--- exactly one missing (TAP_PUSH_TOKEN — quickstart Scenario 5) ---
+::error::one-time setup missing: TAP_PUSH_TOKEN (see docs/how-to/release.md)
+OK   APPLE_CERTIFICATE is set
+OK   APPLE_CERTIFICATE_PASSWORD is set
+OK   APPLE_SIGNING_IDENTITY is set
+OK   APPLE_API_ISSUER is set
+OK   APPLE_API_KEY_ID is set
+OK   APPLE_API_KEY is set
+exit=1  (expect 1, exactly one ::error:: line)
+
+--- all seven present ---
+OK   TAP_PUSH_TOKEN is set
+OK   APPLE_CERTIFICATE is set
+OK   APPLE_CERTIFICATE_PASSWORD is set
+OK   APPLE_SIGNING_IDENTITY is set
+OK   APPLE_API_ISSUER is set
+OK   APPLE_API_KEY_ID is set
+OK   APPLE_API_KEY is set
+exit=0  (expect 0)
+
+--- no secret value is echoed (values are distinctive sentinels) ---
+occurrences of a secret value in the step's output: 0  (expect 0)

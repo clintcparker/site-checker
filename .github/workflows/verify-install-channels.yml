@@ -1,0 +1,113 @@
+name: Verify Install Channels
+
+# Catches the failure a green release cannot: the maintainer sees a successful
+# run, the user sees a broken install. Every check compares against the SAME
+# resolved latest v* release, so a channel lagging another fails by
+# construction rather than by noticing.
+
+on:
+  schedule:
+    - cron: '23 9 * * *'
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.latest.outputs.version }}
+    steps:
+      - name: Resolve latest v* release
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 100 \
+            --json tagName -q '[.[].tagName | select(test("^v[0-9]"))][0]')
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "::error::no v* release exists — site-checker has never been released (see docs/how-to/release.md)"
+            exit 1
+          fi
+          L="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$L" >> "$GITHUB_OUTPUT"
+          echo "Latest v* release: $TAG (version $L)"
+
+      # No retry loop. name-on retries here to absorb NuGet indexing lag; GitHub
+      # release assets and raw.githubusercontent.com have no equivalent lag, so a
+      # retry would only delay a genuine failure.
+      - name: Release assets exist (2/2)
+        env:
+          TAG: ${{ steps.latest.outputs.tag }}
+        run: |
+          fail=0
+          for arch in aarch64 x86_64; do
+            asset="site-checker-${arch}-apple-darwin.zip"
+            url="https://github.com/clintcparker/site-checker/releases/download/${TAG}/${asset}"
+            if curl -sfIL -o /dev/null "$url"; then
+              echo "OK   $asset"
+            else
+              echo "::error::missing release asset: $url"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Tap cask matches the version
+        env:
+          L: ${{ steps.latest.outputs.version }}
+        run: |
+          cask=$(curl -fsSL "https://raw.githubusercontent.com/clintcparker/homebrew-tap/main/Casks/site-checker.rb") || {
+            echo "::error::could not fetch Casks/site-checker.rb from clintcparker/homebrew-tap"
+            exit 1
+          }
+          if echo "$cask" | grep -qF "version \"$L\""; then
+            echo "OK   tap cask is at $L"
+          else
+            echo "::error::tap cask does not contain: version \"$L\" — the tap is lagging the latest release"
+            exit 1
+          fi
+
+  # A macOS runner performing a real install is the most expensive thing in this
+  # feature, and what it catches — a signing or notarization problem — cannot
+  # appear between releases without something else having changed. So it runs
+  # after a release and on demand, but not on the daily cron; steps 1-3 above are
+  # what bound the rot-detection window at 24 hours.
+  e2e:
+    needs: verify
+    runs-on: macos-latest
+    if: github.event_name != 'schedule'
+    env:
+      L: ${{ needs.verify.outputs.version }}
+    steps:
+      - name: Install from the tap
+        run: brew install clintcparker/tap/site-checker
+
+      - name: Gatekeeper accepts the installed app
+        run: |
+          out=$(spctl -a -t exec -vv "/Applications/Site Checker.app" 2>&1)
+          echo "$out"
+          case "$out" in
+            *accepted*) ;;
+            *) echo "::error::spctl did not accept the installed app"; exit 1 ;;
+          esac
+          case "$out" in
+            *"source=Notarized Developer ID"*) echo "OK   notarized Developer ID" ;;
+            *) echo "::error::installed app is not notarized — expected source=Notarized Developer ID"; exit 1 ;;
+          esac
+
+      - name: Installed app reports the released version
+        run: |
+          got=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+            "/Applications/Site Checker.app/Contents/Info.plist")
+          echo "CFBundleShortVersionString → $got"
+          if [ "$got" != "$L" ]; then
+            echo "::error::installed app reports '$got', expected $L"
+            exit 1
+          fi
+          echo "OK   installed app reports $L"

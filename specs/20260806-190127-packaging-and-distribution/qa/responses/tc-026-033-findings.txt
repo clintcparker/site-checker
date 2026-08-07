@@ -1,0 +1,103 @@
+########## TC-026 — ci.yml cannot hang on desktop automation (US5 scenario 3, SC-009) ##########
+--- does any ci.yml step invoke the bundler? ---
+23:  # Nothing here runs the bundler, so no step can block on Finder automation.
+--- does ci.yml's rust job build the frontend first? ---
+73:      - uses: pnpm/action-setup@v4
+75:      - uses: actions/setup-node@v4
+77:          node-version: 22
+78:          cache: pnpm
+81:        run: pnpm install --frozen-lockfile
+83:      - name: pnpm test
+84:        run: pnpm test
+86:      - name: pnpm build
+87:        run: pnpm build
+
+--- EMPIRICAL: cargo test with dist/ absent (the ci.yml rust job's real condition) ---
+ls: cannot access 'dist': No such file or directory
+(dist/ is absent)
+   Doc-tests site_checker_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+cargo test exit=0  (expect 0 — proves ci.yml's rust job needs no frontend build)
+dist/ restored: assets
+index.html
+
+########## TC-027 — review R001: can verify/ detect checksum drift? ##########
+--- any checksum computation or comparison in verify-install-channels.yml? ---
+(none — the job HEADs URLs and greps the version string only; R001 CONFIRMED)
+--- what step 2 actually asserts ---
+      - name: Release assets exist (2/2)
+        env:
+          TAG: ${{ steps.latest.outputs.tag }}
+        run: |
+          fail=0
+          for arch in aarch64 x86_64; do
+            asset="site-checker-${arch}-apple-darwin.zip"
+            url="https://github.com/clintcparker/site-checker/releases/download/${TAG}/${asset}"
+            if curl -sfIL -o /dev/null "$url"; then
+              echo "OK   $asset"
+            else
+              echo "::error::missing release asset: $url"
+              fail=1
+            fi
+          done
+          exit $fail
+note: curl -sfIL is a HEAD request — reachability, not content.
+
+########## TC-028 — review R003: workflow_run conclusion filter ##########
+on:
+  schedule:
+    - cron: '23 9 * * *'
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  workflow_dispatch:
+--- e2e guard ---
+84:    if: github.event_name != 'schedule'
+(no conclusion filter anywhere — R003 CONFIRMED)
+
+########## TC-029 — review R004: credential steps vs pnpm install ordering ##########
+89:      - name: Install frontend dependencies
+148:      - name: Import signing certificate
+167:      - name: Write App Store Connect API key
+175:      - name: Install frontend dependencies
+188:      - name: Build, sign, notarize and staple
+
+########## TC-030 — review R005: permissions scope ##########
+15-
+16:permissions:
+17-  contents: write
+18-
+--- any job-level permissions blocks? ---
+(none — contents: write is file-scoped; R005 CONFIRMED)
+--- any persist-credentials: false? ---
+(none)
+
+########## TC-031 — review R007/R010/R011 ##########
+--- fail_on_unmatched_files set? ---
+(not set — action default is false; R007 CONFIRMED)
+--- concurrency group? ---
+(none in any workflow; R010 CONFIRMED)
+--- annotated-tag enforcement? ---
+(none — a lightweight tag would release identically; R011 CONFIRMED)
+
+########## TC-032 — action pins all resolve to real refs ##########
+  actions/checkout@v4                      OK
+  actions/download-artifact@v4             OK
+  actions/setup-node@v4                    OK
+  actions/upload-artifact@v4               OK
+  dtolnay/rust-toolchain@stable            OK
+  pnpm/action-setup@v4                     OK
+  softprops/action-gh-release@v2           OK
+  Swatinem/rust-cache@v2                   OK
+
+########## TC-033 — worktree is clean after all QA activity ##########
+ M .specify/feature.json
+?? specs/20260806-190127-packaging-and-distribution/qa/
+?? specs/20260806-190127-packaging-and-distribution/reviews/
+(only the untracked qa/ and reviews/ dirs are expected)
+ .specify/feature.json | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)

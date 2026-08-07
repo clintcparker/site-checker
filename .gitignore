@@ -22,7 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-docs/
+# Ignore docs/ contents, but keep docs/how-to/ tracked. The exact shape matters:
+# git will not re-include a file whose parent directory is excluded, so this must
+# exclude the directory's *contents* (docs/*) rather than the directory itself.
+docs/*
+!docs/how-to/
 # Spec Kit runtime state (run logs and catalog cache; config and workflows stay tracked)
 /.specify/workflows/runs/
 /.specify/workflows/.cache/
