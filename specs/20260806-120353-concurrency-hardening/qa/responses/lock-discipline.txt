@@ -1,20 +1,47 @@
-$ grep -rn 'lock()\.unwrap()' src-tauri/src/
-(exit=1 — 1 means zero matches)
+=== lock discipline audit — 2026-08-06 18:10:36 PDT ===
 
-$ grep -rn '\.lock(' src-tauri/src/
+--- unrecovered .lock().unwrap() anywhere in src-tauri/src/ ---
+(none)
+
+--- other unrecovered lock spellings (R001's widened needle) ---
+(none)
+src-tauri/src/lock.rs:28:    match mutex.lock() {
+
+--- every Mutex declared in the crate ---
+src-tauri/src/store.rs:283:    type Edit = fn(&Arc<Mutex<Store>>, &str, &str, u64, &dyn Fn());
+src-tauri/src/store.rs:292:        shared: &Arc<Mutex<Store>>,
+src-tauri/src/store.rs:323:        shared: &Arc<Mutex<Store>>,
+src-tauri/src/lock.rs:27:pub fn recover<T>(mutex: &Mutex<T>) -> (MutexGuard<'_, T>, bool) {
+src-tauri/src/lock.rs:54:    inner: Arc<Mutex<Store>>,
+src-tauri/src/lock.rs:133:        mutex: &Arc<Mutex<T>>,
+src-tauri/src/commands.rs:14:    pub warning: Mutex<Option<String>>,
+src-tauri/src/engine.rs:26:    tasks: Mutex<HashMap<String, tauri::async_runtime::JoinHandle<()>>>,
+
+--- RwLock / atomics / OnceLock (should be none) ---
+(none)
+
+--- all call sites: SharedStore::lock (FR-001) ---
+src-tauri/src/lib.rs:37:            let sites = store.lock().list();
+src-tauri/src/engine.rs:125:        let mut store = self.store.lock();
 src-tauri/src/commands.rs:25:    state.store.lock().list()
 src-tauri/src/commands.rs:69:    let stored = state.store.lock().add(site.clone());
 src-tauri/src/commands.rs:109:        let mut store = state.store.lock();
 src-tauri/src/commands.rs:131:    let write = state.store.lock().delete(&id);
-src-tauri/src/engine.rs:125:        let mut store = self.store.lock();
-src-tauri/src/lib.rs:37:            let sites = store.lock().list();
-src-tauri/src/lock.rs:28:    match mutex.lock() {
-src-tauri/src/lock.rs:236:        let unrecovered = concat!(".lock()", ".unwrap()");
 
-$ grep -rn 'lock::recover' src-tauri/src/
-src-tauri/src/commands.rs:33:    lock::recover(&state.warning).0.take()
+--- all call sites: lock::recover (FR-002 tasks, FR-003 warning) ---
 src-tauri/src/store.rs:257:    use crate::lock::recover;
 src-tauri/src/store.rs:289:    /// Acquired through `lock::recover` rather than a hand-rolled unrecovered
-src-tauri/src/lock.rs:253:                 Use SharedStore::lock for the site list, or lock::recover with a \
+src-tauri/src/commands.rs:33:    lock::recover(&state.warning).0.take()
 src-tauri/src/engine.rs:62:        let mut tasks = lock::recover(&self.inner.tasks).0;
 src-tauri/src/engine.rs:78:        let removed = lock::recover(&self.inner.tasks).0.remove(id);
+
+--- SharedStore.inner has no accessor (structural guarantee) ---
+15:/// `into_inner()` hands back the data *as the panicking thread left it*: a
+32:            (poisoned.into_inner(), true)
+47:/// `inner` is private and has **no accessor**, and that absence is the whole
+54:    inner: Arc<Mutex<Store>>,
+62:            inner: Arc::new(Mutex::new(store)),
+77:        let (guard, recovered) = recover(&self.inner);
+
+--- the source-text guard test ---
+234:    fn no_module_in_this_crate_takes_a_lock_without_recovering() {

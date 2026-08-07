@@ -1,0 +1,96 @@
+=== GUI click-through — 2026-08-06 18:12:53 PDT ===
+
+Driver: real synthetic mouse clicks via CGEvent (/tmp/seq-helper, AXFrontmost re-asserted
+before every event); text entry via System Events keystroke (osascript). CGEvent KEYBOARD
+posting was verified non-functional in this session — two probes (unicode keyboardSetUnicodeString
+and raw virtual keycodes) both left the focused field empty while clicks moved the focus ring,
+so typing was routed through System Events instead. IsSecureEventInputEnabled()=false and
+AXIsProcessTrusted()=true, so the cause is not secure input; it is recorded, not diagnosed.
+Field contents were read back from the AX tree before every submit rather than trusted.
+
+Preflight: CGGetActiveDisplayList cg_error=0 active_displays=1; AXIsProcessTrusted=true;
+probe full-screen grab 2880x1800 at 100.00% non-black. Window: 720x480 logical at screen
+360,128; captures are 1440x960 (2x Retina).
+
+Launch 1: pid 49737, window id 16918. Launch 2 (relaunch): pid 54556, window id 16951.
+
+STEP 1 — app launches, list loads, checks start (T040 smoke test)
+  gui-01-baseline.png: three seed rows, all resolved past Pending
+  Example: Up | Never Up: Down | https://example.org: Up. No banner.
+
+STEP 2 — SUCCESSFUL ADD (T025 / R002)
+  Typed https://qa-clickthrough.example.net + label 'QA Clickthrough' into #site-url/#site-label,
+  clicked #site-submit ('Add') at screen 1042,364.
+  gui-02-add-typed.png (form filled) -> gui-03-add-saved.png (result)
+  sites.json sha256 before: 52f71bcbcb1bbd64758207cc90c05b926005163cd36327b800d136ce164f9764
+  sites.json sha256 after:  b481d4d4bb56ff6bbc1f704b046e81123c363495cce9ae6cde586ceda4d19d1c
+  entries 3 -> 4; new entry id 783750e2-8d82-49c8-a1e6-46c1f655e086 (freshly minted uuid),
+  url/label/interval as typed, appended last. Row appeared reading 'QA Clickthrough' with
+  status Pending and '-' last-checked -> the check was STARTED. No warning banner.
+  Form reset to add mode. No sites.json.tmp staging artifact left behind.
+
+STEP 3 — EDIT (T040 / R002)
+  Clicked that row's Edit button (screen 990,358). Form populated from the site:
+    #site-url='https://qa-clickthrough.example.net' #site-label='QA Clickthrough' #site-interval='60'
+    submit button relabelled 'Save', Cancel revealed  (gui-04-edit-mode.png)
+  Changed label -> 'QA Edited Label', interval -> 120 (gui-05-edit-typed.png), clicked Save.
+  sites.json sha256 after: b3d24504261560dff71910da47c90c72c7740f4268d8b779f1ffb9f3e41b307f
+  Same id, same url, label and interval updated, STILL AT INDEX 3 -> list order preserved.
+  gui-06-edit-saved.png: row reads 'QA Edited Label', status resolved to Down 10s ago ->
+  the check for the added site had actually run. Form reset. No banner. No staging artifact.
+
+STEP 4 — DELETE (T040 / R002)
+  Clicked that row's Delete button (screen 1031,358).
+  sites.json sha256 after: 4d3f9850f520365141b42b0dd6a5f9e45f86005f7f1190c18a8501503d0b0c81
+  entries 4 -> 3; the other three untouched and in their original order.
+  gui-07-deleted.png: row gone, three seed rows still resolving, no banner.
+
+STEP 5 — RELAUNCH (persistence leg)
+  Torn down (TERM then KILL on the process group), port 1420 confirmed free, relaunched.
+  gui-08-relaunch.png + AX tree: exactly three rows (Example / Never Up / https://example.org),
+  no ghost of the deleted site, and zero banner text matching 'sites.json|most recent change|could not'.
+
+DATA SAFETY
+  The user's real sites.json (5 entries, sha256 f76622337ee752f58f6e5e2dc686b9427c183fcfda03a3b78cacdc63ac6346cc)
+  was copied to /tmp/qa-sites-SAFETY-20260806-1800.json BEFORE seeding, restored afterwards, and
+  verified two ways: sha256 identical, and a full diff against an independent earlier safety copy
+  (/tmp/site-checker-sites-SAFETY-COPY.json) came back clean. No .shots-backup file was created or
+  left behind. Both dev process trees were launched into their own process group (perl setpgrp) and
+  torn down with kill -TERM then -KILL on the group; after each teardown no site-checker, tauri or
+  vite process survived and port 1420 was free.
+
+NOT EXERCISED BY CLICKING, on this branch or any other:
+  - the FR-010 duplicate-id refusal (every add mints a fresh uuid, so no click produces one)
+  - the FR-004 poison-recovery banner (no sequence of clicks poisons a mutex)
+  Both remain covered by the automated tests, not by these images.
+
+==========================================================================
+STEP 6 — WRITE FAILURE AGAINST A RUNNING WINDOW (FR-011 / US2-AS3 / the FR-004 banner mechanism)
+==========================================================================
+  Launch 3: pid 58831, window id 16964. Seeded with 2 sites.
+  While the app was running, the store's directory was made unwritable:
+    chmod 500 ~/Library/Application\ Support/com.clintparker.site-checker   ->  dr-x------
+  Then a valid, NON-duplicate site was added through the form:
+    #site-url='https://qa-writefail.example.net'  #site-label='Write Fail'  #site-interval='60'
+  (both read back from the AX tree before the submit click at screen 1042,328).
+
+  OBSERVED — gui-09-write-failure.png:
+    1. The #banner element rendered: 'Could not write sites.json: Permission denied (os error 13)'
+    2. The row APPEARED anyway ('Write Fail' / https://qa-writefail.example.net)
+    3. Its check RAN and resolved to Down, '1s ago' -> checking began
+    4. sites.json on disk was UNCHANGED: sha256 0aed1748cfcce66082895e97ea7d3c92239da531e2f69d4c27d390415e812108
+       both before and after, still 2 entries (qa-up, qa-down)
+    5. No sites.json.tmp staging artifact was left behind
+
+  Why this matters beyond FR-011: this is the store-warning emit -> onStoreWarning -> #banner
+  path executing at RUNTIME. lock.rs:103 is the crate's only emit of 'store-warning', and
+  SharedStore::lock's FR-004 poison warning goes through the same private warn() helper that
+  raised this banner. So the mechanism FR-004 reuses is now proven live rather than read by eye.
+  What is still NOT proven at runtime is the poison-specific trigger: that a recovered mutex
+  sets the flag that calls warn() with FR-004's wording. That gate and that string are verified
+  by reading lock.rs:76-85, and the recovery half is proven by the lock tests.
+
+  CLEANUP: chmod 755 restored (the directory's original mode), process group torn down
+  (TERM then KILL), no survivors, port 1420 free, the user's 5-entry sites.json restored and
+  re-verified at sha256 f76622337ee752f58f6e5e2dc686b9427c183fcfda03a3b78cacdc63ac6346cc with a
+  clean diff against the independent safety copy.

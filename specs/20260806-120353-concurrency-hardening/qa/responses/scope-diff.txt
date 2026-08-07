@@ -1,0 +1,39 @@
+=== scope & compatibility checks — 2026-08-06 18:12:10 PDT ===
+HEAD=3e9972c  implementation range = 2ec8788..8feb989
+
+--- files changed by the implementation ---
+specs/20260806-120353-concurrency-hardening/tasks.md
+src-tauri/src/commands.rs
+src-tauri/src/engine.rs
+src-tauri/src/lib.rs
+src-tauri/src/lock.rs
+src-tauri/src/store.rs
+
+--- FR-016: any change under src/, index.html, tauri.conf.json? (empty = none) ---
+(above empty = FR-016 holds)
+
+--- FR-015: any change to model.rs (the saved list's shape)? (empty = none) ---
+(above empty = FR-015 holds)
+
+--- no new dependency ---
+(above empty = no dependency added)
+
+--- FR-018: per-function content hash of the save path at both ends of the range ---
+  stage: IDENTICAL (76edb1178f77935e79bd347bc048900a)
+  save: IDENTICAL (297794d97471ac3ad31b8e9f7a0974c3)
+  staging_path: IDENTICAL (ee8131c837a548da7fa7c684d7b88049)
+  load: IDENTICAL (2ce4e01f0d11cd311972c92ea9687235)
+
+--- FR-018: ROADMAP §1 still records the symlink item as no-action ---
+65:## 1. Recorded behaviour (no action expected)
+77:- **A symlink at the `sites.json` path is now replaced rather than followed.**
+86:  reopening the truncation window 003 exists to close. — no action expected
+
+--- SC-008: frontend byte-identical from the pre-implementation commit to HEAD ---
+(above empty = frontend untouched; the 30 frontend tests therefore pass unmodified)
+
+--- FR-015 live: keys actually present in the user's saved list ---
+  entries: 5
+  key set: ['id', 'interval_secs', 'label', 'method_override', 'url']
+  all snake_case: True
+  path: /Users/clint/Library/Application Support/com.clintparker.site-checker/sites.json
