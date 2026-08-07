@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # spec-kit-worktree-parallel: create-worktree.sh
 # Deterministic worktree creation for parallel agents/features.
-# Called by the speckit.worktrees.create command or after_specify hook.
+# Called by the speckit.worktrees.create command or before_specify hook.
 #
 # Usage:
 #   create-worktree.sh [options] <branch-name>

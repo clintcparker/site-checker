@@ -10,25 +10,7 @@ installed:
 settings:
   auto_execute_hooks: true
 hooks:
-  before_specify:
-  - extension: worktrees
-    command: speckit.worktrees.create
-    enabled: true
-    optional: false
-    priority: 20
-    prompt: Execute speckit.worktrees.create?
-    description: Create the feature branch inside a new worktree and work there
-    condition: null
   after_specify:
-  - extension: worktrees
-    command: speckit.worktrees.create
-    enabled: false
-    optional: false
-    priority: 10
-    prompt: Execute speckit.worktrees.create?
-    description: Auto-spawn a worktree after a new feature is specified (superseded
-      by the before_specify hook)
-    condition: null
   - extension: companion
     command: speckit.companion.after-specify
     enabled: true
@@ -134,6 +116,15 @@ hooks:
     priority: 10
     prompt: Scan this existing project to customize spec-kit configuration?
     description: Auto-scan project after spec-kit init to detect tech stack and conventions
+    condition: null
+  before_specify:
+  - extension: worktrees
+    command: speckit.worktrees.create
+    enabled: true
+    optional: false
+    priority: 20
+    prompt: Execute speckit.worktrees.create?
+    description: Create the feature branch inside a new worktree and work there
     condition: null
   before_constitution:
   - extension: git

@@ -2,17 +2,18 @@ schema_version: "1.0"
 workflow:
   id: "send-it-checked"
   name: "Spec to PR, unattended, with review and QA"
-  version: "0.2.0"
+  version: "0.3.0"
   author: "clintcparker"
-  description: "send-it plus staff review and QA, each with one fix-and-re-run pass, before shipping — with before/after UI screenshots. Requires the `screenshots`, `ship`, `staff-review` and `qa` extensions."
+  description: "send-it plus staff review and QA, each with one fix-and-re-run pass, before shipping — with before/after UI screenshots. Requires the `worktrees`, `screenshots`, `ship`, `staff-review` and `qa` extensions."
 
 requires:
   # Same floor as yolo and send-it: engine-side ``integration: "auto"``.
   #
   # The `screenshots` extension is a hard dependency -- the two capture steps
-  # fail at dispatch without it -- but it cannot be declared here: `requires`
-  # recognizes only speckit_version and integrations, and an unknown key is a
-  # validation error. See this workflow's README.
+  # fail at dispatch without it -- and as of 0.3.0 so is `worktrees`, for the
+  # first step. Neither can be declared here: `requires` recognizes only
+  # speckit_version and integrations, and an unknown key is a validation
+  # error. See this workflow's README.
   speckit_version: ">=0.8.12"
   integrations:
     # Advisory compatibility hint, not a closed set.
@@ -34,6 +35,47 @@ inputs:
     prompt: "Branch the pull request should target"
 
 steps:
+  # Worktree isolation is a STEP, not an inherited hook side-effect.
+  #
+  # The global before_specify hook in .specify/extensions.yml only fires when a run
+  # actually starts at specify. A resumed run, or a fix-up run over a feature that was
+  # already specified, enters at a later step, never triggers the hook, and executes
+  # entirely in the primary checkout. That is not recoverable after the fact unless the
+  # primary happens to be clean: create-worktree.sh's header states the invariant — a
+  # branch can live in exactly one worktree, so a `git checkout -b` in the primary
+  # makes `git worktree add` impossible for that same branch until the primary moves
+  # off it.
+  #
+  # This step is idempotent (see speckit.worktrees.create Outline step 0). When the
+  # before_specify hook has already fired, it finds the session inside a worktree and
+  # no-ops, so declaring both costs nothing. Every step below therefore runs *in the
+  # worktree* — they are the same agent session, so the working directory carries
+  # forward. Do not add a step that assumes the primary checkout is on the feature
+  # branch.
+  - id: worktree
+    command: speckit.worktrees.create
+    integration: "{{ inputs.integration }}"
+    input:
+      args: >-
+        UNATTENDED RUN — no user is present; never prompt and never ask which layout.
+
+        Ensure this session is inside a feature worktree before any later step touches
+        the repo. Follow the command's Outline step 0 case detection: no-op if already
+        isolated; use the existing BRANCH NAME (never --from-description) if the primary
+        checkout is on a feature branch; use --from-description "{{ inputs.spec }}" only
+        when the primary is on the base ref with no feature branch yet.
+
+        If the feature branch is already checked out in the primary, take the recovery
+        path only when `git status --porcelain` and `git stash list` are BOTH empty:
+        move the primary to the base ref, attach the worktree, enter it, and report
+        worktree_isolation=recovered naming the base ref the primary now sits on. If
+        either is non-empty, do NOT force it and do NOT move the primary — report
+        worktree_isolation=failed with the branch name and continue the workflow in
+        place.
+
+        Record which case applied and carry it forward, so the ship step can surface a
+        recovered or failed isolation in the pull request description.
+
   - id: specify
     command: speckit.specify
     integration: "{{ inputs.integration }}"
@@ -113,6 +155,22 @@ steps:
         installed and usable without setup). Write the report to FEATURE_DIR/qa/
         as usual.
 
+        Before recording ANY scenario as skipped or unrunnable for want of GUI
+        automation, read FEATURE_DIR/screenshots/manifest.json. The screenshots
+        extension drives the running app directly (on macOS, through the
+        accessibility API — synthetic clicks and keystrokes, window resize,
+        per-window capture), and its before pass has already run by this point.
+        If the manifest records capture_blocked: false, the app IS drivable in
+        this environment: cite that run's observations as evidence and mark such
+        scenarios partial with the specific remaining gap named, never skipped
+        with a blanket "no GUI automation" rationale.
+
+        Two limits on that evidence. The before pass captured the BASE tree, so
+        cite it for drivability and for unchanged-behaviour comparisons, never
+        as an observation of post-change behaviour. And "the app was driven" is
+        not "every interaction was performed" — state exactly which interactions
+        the manifest records.
+
         If the verdict is FAILURES FOUND, fix the failing scenarios and re-run
         QA exactly once. After that second run, stop whatever the verdict is
         and leave the report in place — the ship step reports what remains.
@@ -150,6 +208,15 @@ steps:
         Before the working-tree pre-flight check, commit every uncommitted
         change with a descriptive conventional-commit message instead of
         prompting to commit or stash.
+
+        WORKTREE ISOLATION — the worktree step reported an outcome; carry it
+        through. If the run reported worktree_isolation=failed, say so plainly
+        near the TOP of the pull request description: the run executed in the
+        primary checkout rather than an isolated worktree, and name the branch.
+        If it reported worktree_isolation=recovered, note that the primary
+        checkout was moved off the feature branch to the base ref so the
+        worktree could be attached — the user will want to know their working
+        directory changed under them. Any other outcome needs no mention.
 
         If any tasks in tasks.md are still incomplete, do not stop — proceed
         and list the incomplete tasks in the pull request description.

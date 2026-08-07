@@ -46,22 +46,6 @@
       "registered_skills": [],
       "installed_at": "2026-08-05T21:47:59.875084+00:00"
     },
-    "worktrees": {
-      "version": "1.0.0",
-      "source": "local",
-      "manifest_hash": "sha256:99fab0dbac58df0b0dad7803f2d2abe070cfe2e84b0c2d23f2cecad184d9708e",
-      "enabled": true,
-      "priority": 10,
-      "registered_commands": {
-        "claude": [
-          "speckit.worktrees.create",
-          "speckit.worktrees.list",
-          "speckit.worktrees.clean"
-        ]
-      },
-      "registered_skills": [],
-      "installed_at": "2026-08-05T21:51:31.428129+00:00"
-    },
     "companion": {
       "version": "0.20.1",
       "source": "local",
@@ -121,6 +105,22 @@
       "registered_skills": [],
       "installed_at": "2026-08-06T20:34:21.985124+00:00"
     },
+    "worktrees": {
+      "version": "2.1.0",
+      "source": "local",
+      "manifest_hash": "sha256:050f163718d151d80659e56cb41e61e2e03db4f91ce44adb4f3389d8ce586951",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.worktrees.create",
+          "speckit.worktrees.list",
+          "speckit.worktrees.clean"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-06T23:51:42.857911+00:00"
+    },
     "git": {
       "version": "1.1.0",
       "source": "local",
@@ -137,7 +137,7 @@
         ]
       },
       "registered_skills": [],
-      "installed_at": "2026-08-06T21:16:51.802427+00:00"
+      "installed_at": "2026-08-07T00:34:05.017086+00:00"
     }
   }
 }

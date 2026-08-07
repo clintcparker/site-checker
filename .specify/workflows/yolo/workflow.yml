@@ -2,9 +2,9 @@ schema_version: "1.0"
 workflow:
   id: "yolo"
   name: "Full SDD Cycle - no gates"
-  version: "0.1.1"
+  version: "0.2.0"
   author: "clintcparker"
-  description: "Runs specify → plan → tasks → implement without review gates"
+  description: "Runs worktree → specify → plan → tasks → implement without review gates. Requires the `worktrees` extension."
 
 requires:
   # 0.8.12 is the first release with engine-side resolution of the
@@ -12,6 +12,11 @@ requires:
   # support integration: auto to follow project's initialized AI".
   # Older versions treat "auto" as a literal integration key and fail
   # at dispatch.
+  #
+  # The `worktrees` extension is a hard dependency as of 0.2.0 -- the first
+  # step fails at dispatch without it -- but it cannot be declared here:
+  # `requires` recognizes only speckit_version and integrations, and an
+  # unknown key is a validation error. See this workflow's README.
   speckit_version: ">=0.8.12"
   integrations:
     # The four commands below (specify, plan, tasks, implement) are core
@@ -35,6 +40,52 @@ inputs:
     prompt: "Integration to use (e.g. claude, copilot, gemini; 'auto' uses the project's initialized integration)"
 
 steps:
+  # Worktree isolation is a STEP, not an inherited hook side-effect.
+  #
+  # The global before_specify hook in .specify/extensions.yml only fires when a run
+  # actually starts at specify. A resumed run, or a fix-up run over a feature that was
+  # already specified, enters at a later step, never triggers the hook, and executes
+  # entirely in the primary checkout. That is not recoverable after the fact unless the
+  # primary happens to be clean: create-worktree.sh's header states the invariant — a
+  # branch can live in exactly one worktree, so a `git checkout -b` in the primary
+  # makes `git worktree add` impossible for that same branch until the primary moves
+  # off it.
+  #
+  # This step is idempotent (see speckit.worktrees.create Outline step 0). When the
+  # before_specify hook has already fired, it finds the session inside a worktree and
+  # no-ops, so declaring both costs nothing. Every step below therefore runs *in the
+  # worktree* — they are the same agent session, so the working directory carries
+  # forward.
+  #
+  # It also makes the `worktrees` extension a hard dependency of this workflow, which
+  # `requires` cannot express (it recognizes only speckit_version and integrations).
+  # See this workflow's README.
+  - id: worktree
+    command: speckit.worktrees.create
+    integration: "{{ inputs.integration }}"
+    input:
+      args: >-
+        UNATTENDED RUN — no user is present; never prompt and never ask which layout.
+
+        Ensure this session is inside a feature worktree before any later step touches
+        the repo. Follow the command's Outline step 0 case detection: no-op if already
+        isolated; use the existing BRANCH NAME (never --from-description) if the primary
+        checkout is on a feature branch; use --from-description "{{ inputs.spec }}" only
+        when the primary is on the base ref with no feature branch yet.
+
+        If the feature branch is already checked out in the primary, take the recovery
+        path only when `git status --porcelain` and `git stash list` are BOTH empty:
+        move the primary to the base ref, attach the worktree, enter it, and report
+        worktree_isolation=recovered naming the base ref the primary now sits on. If
+        either is non-empty, do NOT force it and do NOT move the primary — report
+        worktree_isolation=failed with the branch name and continue the workflow in
+        place.
+
+        This workflow has no ship step, so there is no pull request to carry the
+        outcome. Record which case applied in the run summary instead, and state a
+        recovered or failed isolation prominently — it is the only record the user
+        gets.
+
   - id: specify
     command: speckit.specify
     integration: "{{ inputs.integration }}"

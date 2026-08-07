@@ -3,10 +3,10 @@ schema_version: "1.0"
 extension:
   id: worktrees
   name: "Worktrees"
-  version: "1.0.0"
-  description: "Default-on worktree isolation for parallel agents — sibling or nested layout"
-  author: "dango85"
-  repository: "https://github.com/dango85/spec-kit-worktree-parallel"
+  version: "2.1.0"
+  description: "Default-on worktree isolation for parallel agents — worktree-first flow, sibling or nested layout"
+  author: "clintcparker"
+  repository: "https://github.com/clintcparker/speckit-addons"
   license: "MIT"
 
 requires:
@@ -34,10 +34,11 @@ provides:
       required: false
 
 hooks:
-  after_specify:
+  before_specify:
     command: speckit.worktrees.create
     optional: false
-    description: "Auto-spawn a worktree after a new feature is specified"
+    priority: 20
+    description: "Create the feature branch inside a new worktree and work there"
 
 tags:
   - "worktree"
