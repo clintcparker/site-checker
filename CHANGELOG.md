@@ -2,6 +2,39 @@
 
 All notable changes to Site Checker are recorded here.
 
+## Repository made public — 2026-08-06
+
+The repository is now public, which retires the first of the two maintainer
+decisions the entry below leaves open. **This supersedes that entry's "this
+repository is still private".** The second decision — a $99/yr Apple Developer
+Program membership — is still open, and `brew install` still does not work: no
+`v1.0.0` tag exists and none of the seven release credentials is set, so
+pre-flight fails before anything builds. The README says so where a visitor
+will see it.
+
+Going public was preceded by an audit of all 91 commits and every tracked file.
+No secrets were found: every CI credential is a `secrets.*` reference, and no
+`sites.json`, `.env`, or key material has ever been committed. What the audit
+did find was fixed:
+
+- **`LICENSE` (0BSD)** at the root — permissive to the point of not requiring
+  attribution. It does not cover `.specify/extensions/`, which vendors six
+  third-party MIT extensions; each keeps its own license and copyright.
+- **96 files of spec-kit process exhaust untracked**, plus `.specify/feature.json`,
+  which held an absolute local worktree path. Releases, `qa/responses/`,
+  screenshots, and `.spec-context.json` are machine output that means nothing off
+  the machine that produced it. The spec documents stay — every `specs/` link in
+  this changelog was enumerated first, and none pointed at a dropped file.
+- **21 absolute paths scrubbed** from the kept spec documents.
+- **README corrected** — a dead link to a design document that existed neither on
+  disk nor in git, and `brew install` presented as working when it 404s.
+- **21 merged branches pruned.** `origin` now carries only `main`.
+
+History was deliberately not rewritten. Old commits keep the screenshots and the
+scrubbed paths, which reveal only a username already public via the commit email.
+A rewrite would break every merged pull request link and the commit SHAs these
+specs cite.
+
 ## Packaging & distribution — 2026-08-06
 
 Site Checker gets an install path. `brew install clintcparker/tap/site-checker`
