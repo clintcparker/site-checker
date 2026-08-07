@@ -1,6 +1,9 @@
 [package]
 name = "site-checker"
-version = "0.1.0"
+# Inert sentinel. The real version is written here by .github/workflows/release.yml
+# from the pushed tag (v1.2.3 -> 1.2.3) at build time, and tauri.conf.json has no
+# "version" key so this is what the bundle reports. Hand-editing it fails CI.
+version = "0.0.0"
 description = "A small macOS dashboard that checks whether your sites are up"
 authors = ["Clint Parker <me@clintparker.com>"]
 edition = "2021"
