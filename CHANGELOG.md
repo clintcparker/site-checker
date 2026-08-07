@@ -10,6 +10,18 @@ and publishing a version becomes pushing one annotated `v<MAJOR>.<MINOR>.<PATCH>
 tag. **Nothing the application does changes** — `src/` and `src-tauri/src/` are
 untouched, and the test counts are unmoved at 55 Rust and 30 frontend.
 
+**Not yet live, and deliberately so.** What lands here is the machinery: the
+workflows, the cask template, the single version source, and the how-to. No
+`v1.0.0` exists, this repository is still private, and none of the seven
+credentials is set, so `brew install clintcparker/tap/site-checker` does not
+work today — an unauthenticated fetch of a private release asset returns 404.
+Two decisions that are the maintainer's alone gate the rest: making the
+repository public (which exposes its full history), and a $99/yr Apple Developer
+Program membership for signing and notarization. Until both are answered,
+FR-001, FR-006, FR-015, FR-027 and the runtime half of FR-005 stay deferred, and
+`docs/ROADMAP.md` §2 carries the reduced scope. Read this entry as "the pipeline
+is built and statically proven", not as "packaging shipped".
+
 Spec: [`specs/20260806-190127-packaging-and-distribution/spec.md`](specs/20260806-190127-packaging-and-distribution/spec.md) ·
 Plan: [`specs/20260806-190127-packaging-and-distribution/plan.md`](specs/20260806-190127-packaging-and-distribution/plan.md) ·
 Tasks: [`specs/20260806-190127-packaging-and-distribution/tasks.md`](specs/20260806-190127-packaging-and-distribution/tasks.md) ·
