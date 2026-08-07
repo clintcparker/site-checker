@@ -1,0 +1,87 @@
+name: CI
+
+# The four gates the constitution names by hand, run on every push to main and
+# every pull request, so "green before merge" stops depending on run discipline.
+#
+# Deliberately separate from release.yml and verify-install-channels.yml: a red
+# check here means the code is broken, which is a different question from a red
+# release or a broken install channel.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # macOS is required, not preferred: src-tauri links macOS system frameworks
+  # through tauri 2.11. Building it on Ubuntu would need the WebKitGTK dev
+  # packages and would then be testing a configuration nobody ships.
+  #
+  # Nothing here runs the bundler, so no step can block on Finder automation.
+  # No frontend build either — cargo test does not need ../dist to exist.
+  rust:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # --locked here, never in release.yml: this job does not stamp the
+      # version, so the committed Cargo.lock must match and dependency drift
+      # should fail rather than resolve silently.
+      - name: cargo test
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+
+      - name: cargo clippy
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+      # What turns "the tag is the single source of truth" from a convention
+      # into a guarantee. Without it, a hand-edited version silently competes
+      # with the tag and nothing notices until an install reports the wrong one.
+      - name: Version sentinel
+        run: |
+          fail=0
+          if ! grep -q '^version = "0.0.0"' src-tauri/Cargo.toml; then
+            echo "::error::src-tauri/Cargo.toml version must stay 0.0.0 — the release tag is the source of truth (see docs/how-to/release.md)"
+            fail=1
+          fi
+          if ! grep -q '"version": "0.0.0"' package.json; then
+            echo "::error::package.json version must stay 0.0.0 — the release tag is the source of truth (see docs/how-to/release.md)"
+            fail=1
+          fi
+          if grep -q '"version"' src-tauri/tauri.conf.json; then
+            echo "::error::src-tauri/tauri.conf.json must not carry a version key — Tauri falls back to Cargo.toml, which release.yml stamps from the tag"
+            fail=1
+          fi
+          [ "$fail" -eq 0 ] && echo "OK   one version source, and it is an inert sentinel"
+          exit $fail
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: pnpm test
+        run: pnpm test
+
+      - name: pnpm build
+        run: pnpm build
