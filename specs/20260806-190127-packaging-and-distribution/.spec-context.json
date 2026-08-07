@@ -1,0 +1,30 @@
+{
+  "workflow": "speckit",
+  "specName": "Packaging & Distribution",
+  "branch": "20260806-190127-packaging-and-distribution",
+  "currentStep": "tasks",
+  "status": "ready-to-implement",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-08-07T02:05:53.583Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-07T02:18:32.966Z"
+    },
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-07T02:24:23.960Z"
+    }
+  ]
+}
