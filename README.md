@@ -9,6 +9,11 @@ person.
 
 ## Install
 
+> **Not released yet.** The install pipeline is built and tested, but no version
+> has been published, so the command below does not work today. Until a release
+> exists, [build it yourself](#build-it-yourself). Progress is in
+> [CHANGELOG.md](CHANGELOG.md).
+
 ```sh
 brew install clintcparker/tap/site-checker
 ```
@@ -85,6 +90,16 @@ what to do when a release fails partway through.
 
 Check results are never written to disk — every site starts Pending on launch.
 
-## Design
+## How it was built
 
-See [docs/superpowers/specs/2026-07-23-site-checker-design.md](docs/superpowers/specs/2026-07-23-site-checker-design.md).
+Each change was specified before it was written. The specs, plans, and task
+breakdowns live in [specs/](specs/), and [CHANGELOG.md](CHANGELOG.md) links every
+entry to the spec it came from.
+
+## License
+
+[0BSD](LICENSE) — do what you like with it, no attribution required.
+
+`.specify/extensions/` vendors six third-party Spec Kit extensions that are **not**
+covered by that license. Each keeps its own MIT license and copyright holder in its
+own directory.

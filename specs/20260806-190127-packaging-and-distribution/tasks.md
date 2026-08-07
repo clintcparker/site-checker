@@ -26,8 +26,8 @@ heading, so the plan's gating (what can land before the R1/R2 answers) is preser
 ## Path Conventions
 
 - Repository root of the **feature worktree**:
-  `/Users/clint/src/clintcparker/site-checker--20260806-190127-packaging-and-distribution/`
-- Repository root of the **primary checkout**: `/Users/clint/src/clintcparker/site-checker/`
+  `~/src/site-checker--20260806-190127-packaging-and-distribution/`
+- Repository root of the **primary checkout**: `~/src/site-checker/`
 - All paths below are relative to the feature worktree **unless the task says otherwise**.
 
 > ⚠️ **`docs/` is gitignored** (`.gitignore:25`). `docs/ROADMAP.md` and
@@ -38,7 +38,7 @@ heading, so the plan's gating (what can land before the R1/R2 answers) is preser
 > checkout are marked **[PRIMARY CHECKOUT]**.
 
 > 📎 **Reference implementation is on disk.** `clintcparker/name-on` is cloned at
-> `/Users/clint/src/clintcparker/name-on/`. Read
+> `~/src/name-on/`. Read
 > `.github/workflows/release-cli.yml`, `.github/workflows/verify-install-channels.yml`,
 > `install/homebrew/name-on.rb`, and `docs/how-to/release.md` there before writing the
 > equivalents — this feature mirrors that shape deliberately, with the divergences recorded in
@@ -186,7 +186,7 @@ Dependencies.
 research R13.
 
 - [X] T015 [US1] Create `install/homebrew/site-checker.rb` with the cask body from [contracts/install-channel.md](./contracts/install-channel.md#template): the `arch arm: "aarch64", intel: "x86_64"` stanza (FR-005), `version "VERSION"`, `sha256 arm: "SHA256_ARM64", intel: "SHA256_X86_64"`, the `url` interpolating `#{version}` and `#{arch}` against the release download path, `app "Site Checker.app"` (FR-002), `uninstall quit: "com.clintparker.site-checker"` (FR-004), and `zap trash: ["~/Library/Application Support/com.clintparker.site-checker"]` (FR-003, SC-010). The data directory appears in **exactly one stanza and it is `zap`** — that split, not discipline, is what satisfies Constitution II. Use `trash:`, never `delete:`.
-- [X] T016 [US1] Add the required header comment to `install/homebrew/site-checker.rb`, mirroring `/Users/clint/src/clintcparker/name-on/install/homebrew/name-on.rb` in spirit: that it is a TEMPLATE and must never be copied to the tap by hand, that `.github/workflows/release.yml` is the only thing that renders it, that its destination is `clintcparker/homebrew-tap` → `Casks/site-checker.rb`, and that the render step fails the release when a placeholder is missing here or survives into the output (FR-012).
+- [X] T016 [US1] Add the required header comment to `install/homebrew/site-checker.rb`, mirroring `~/src/name-on/install/homebrew/name-on.rb` in spirit: that it is a TEMPLATE and must never be copied to the tap by hand, that `.github/workflows/release.yml` is the only thing that renders it, that its destination is `clintcparker/homebrew-tap` → `Casks/site-checker.rb`, and that the render step fails the release when a placeholder is missing here or survives into the output (FR-012).
 - [ ] T017 [US1] **VALIDATE** — hand-render `install/homebrew/site-checker.rb` to a scratch path with a plausible version and two 64-hex checksums, then run `ruby -c` on it (expect `Syntax OK`) and `brew audit --cask --new` against it. Confirm zero placeholder tokens survive and the `zap` path is the literal `~/Library/Application Support/com.clintparker.site-checker`.
 - [X] T018 [P] [US1] Update `README.md` to lead with `brew install clintcparker/tap/site-checker` as the primary install path, document both `brew uninstall site-checker` (list kept) and `brew uninstall --zap site-checker` (list trashed), and add the one sentence research R13 calls for: a previously hand-built copy shares the same `sites.json`, so the installed app picks up the existing list, and Homebrew refuses rather than overwrites if a hand-built `Site Checker.app` already sits in `/Applications`.
 
@@ -206,7 +206,7 @@ reports it.
 
 **Contract**: [contracts/workflows.md](./contracts/workflows.md#releaseyml--release-us1-us2-us3)
 and [contracts/version-and-artifacts.md](./contracts/version-and-artifacts.md). **Reference**:
-`/Users/clint/src/clintcparker/name-on/.github/workflows/release-cli.yml`.
+`~/src/name-on/.github/workflows/release-cli.yml`.
 
 - [X] T019 [US2] Create `.github/workflows/release.yml` with `on: push: tags: ['v*']`, file-scope `permissions: contents: write`, and a `preflight` job on `ubuntu-latest` (no checkout, no toolchain) whose first step derives `VERSION="${GITHUB_REF_NAME#v}"`, validates it is exactly three dot-separated non-empty numeric components per [contracts/version-and-artifacts.md](./contracts/version-and-artifacts.md#tag--version), exits non-zero on anything else including `v1.2.3-rc.1` (FR-009), and exposes `version` as a job output.
 - [X] T020 [US2] Add the `test` job to `.github/workflows/release.yml` — `needs: preflight`, `macos-latest`, running the same four gates as `ci.yml`. Present because a tag can be pushed at a commit CI never evaluated (FR-023).
@@ -245,7 +245,7 @@ checks that what it advertises is what it actually serves.
 **Independent Test**: Dispatch it against the current published version and expect green; point the
 tap at an older version and expect a failure naming the lagging channel.
 
-**Reference**: `/Users/clint/src/clintcparker/name-on/.github/workflows/verify-install-channels.yml`
+**Reference**: `~/src/name-on/.github/workflows/verify-install-channels.yml`
 — mirror it with the channel set reduced to one (no NuGet) and the end-to-end step changed from
 `dotnet tool install` to `brew install` + `spctl` (research R12).
 
@@ -285,7 +285,7 @@ release fails partway through.
 **Independent Test**: Hand it to someone who has never released this project and have them perform
 a release using only it.
 
-**Reference**: `/Users/clint/src/clintcparker/name-on/docs/how-to/release.md`.
+**Reference**: `~/src/name-on/docs/how-to/release.md`.
 
 - [X] T036 [US6] Create `docs/how-to/release.md` covering: **the procedure** (push one annotated `v<MAJOR>.<MINOR>.<PATCH>` tag; there is nothing else — FR-007, SC-003); **the one-time setup checklist** (the seven secrets from [data-model.md](./data-model.md#one-time-setup-credentials), how each is produced, and `TAP_PUSH_TOKEN`'s exact fine-grained scope); **re-running a failed release** (the release updates in place, the tap commits only when content changed, and the honest caveat from research R14 that a re-run rebuilds and Tauri is not bit-reproducible, so checksums *do* change and the tap *will* commit — "unchanged content → no commit" is not "re-running is a no-op"); **the pre-flight's honest limit** (presence ≠ validity — an expired certificate, a revoked API key, or a mis-scoped token passes pre-flight and fails later, at signing, at `notarytool submit`, or at the tap push — research R9); and **the local DMG note** (nothing distributes a DMG any more; `pnpm tauri build --bundles dmg` on your own Mac if you want one — research R4).
 - [X] T037 [US6] Confirm `docs/how-to/release.md` is actually tracked: `git check-ignore -v docs/how-to/release.md` must report no match and `git status --short` must show it as a new file. If it is still ignored, T003 was not applied in the shape research R8 requires.
@@ -301,8 +301,8 @@ makes FR-027 answerable. **Phase G is inside this feature, not after it** (resea
 release pipeline that has never run is a plausible-looking YAML file, and the exact failure class
 this feature exists to prevent is invisible until the first real install.
 
-- [X] T038 [P] **[PRIMARY CHECKOUT]** Amend the size expectation at `/Users/clint/src/clintcparker/site-checker/docs/superpowers/plans/2026-07-23-site-checker.md:2554` (FR-026, SC-012): replace *"Expected: single-digit MB. A much larger number means something pulled in an unexpected dependency — worth investigating before shipping"* with the measured ~15 MB and one sentence recording that the cause was investigated and attributed to `aws-lc-rs` via reqwest 0.13's `default-tls`. Leave `CHANGELOG.md:327` alone — it records the actual size as history, which is a fact, not a claim. Do **not** change the TLS backend (research R7).
-- [X] T039 [P] **[PRIMARY CHECKOUT]** Drain §2 of `/Users/clint/src/clintcparker/site-checker/docs/ROADMAP.md` (FR-025): record what shipped in the style §§1–3 already use, name this feature's directory, and state plainly anything deliberately left — in particular whichever of R1/R2's fallbacks was taken, if either. Renumber the sections that follow, consistent with how previous drains did it.
+- [X] T038 [P] **[PRIMARY CHECKOUT]** Amend the size expectation at `~/src/site-checker/docs/superpowers/plans/2026-07-23-site-checker.md:2554` (FR-026, SC-012): replace *"Expected: single-digit MB. A much larger number means something pulled in an unexpected dependency — worth investigating before shipping"* with the measured ~15 MB and one sentence recording that the cause was investigated and attributed to `aws-lc-rs` via reqwest 0.13's `default-tls`. Leave `CHANGELOG.md:327` alone — it records the actual size as history, which is a fact, not a claim. Do **not** change the TLS backend (research R7).
+- [X] T039 [P] **[PRIMARY CHECKOUT]** Drain §2 of `~/src/site-checker/docs/ROADMAP.md` (FR-025): record what shipped in the style §§1–3 already use, name this feature's directory, and state plainly anything deliberately left — in particular whichever of R1/R2's fallbacks was taken, if either. Renumber the sections that follow, consistent with how previous drains did it.
 - [X] T040 [P] Add a release entry to `CHANGELOG.md` at the worktree root following the file's existing convention.
 - [X] T041 Validate all three workflow files parse as YAML and reference only actions that exist — `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `.github/workflows/verify-install-channels.yml`. Run `actionlint` if available; otherwise parse each with a YAML loader and confirm every `uses:` pin resolves.
 - [X] T042 Run the standing constitutional gates from the worktree root and record the counts: `cargo test` (expect 55), `pnpm test` (expect 30), `cargo clippy -- -D warnings` (expect clean). No application code was touched, so any movement here is a regression to investigate before shipping.
@@ -370,8 +370,8 @@ Task: "Set version to 0.0.0 in package.json"
 
 ```bash
 # Three files, two checkouts — all independent:
-Task: "Amend the size expectation in /Users/clint/src/clintcparker/site-checker/docs/superpowers/plans/2026-07-23-site-checker.md"
-Task: "Drain §2 of /Users/clint/src/clintcparker/site-checker/docs/ROADMAP.md"
+Task: "Amend the size expectation in ~/src/site-checker/docs/superpowers/plans/2026-07-23-site-checker.md"
+Task: "Drain §2 of ~/src/site-checker/docs/ROADMAP.md"
 Task: "Add the release entry to CHANGELOG.md"
 ```
 

@@ -14,7 +14,7 @@ genuinely unchanged.
 Run from the feature worktree:
 
 ```bash
-cd /Users/clint/src/clintcparker/site-checker--20260806-102818-durability-and-data
+cd ~/src/site-checker--20260806-102818-durability-and-data
 ```
 
 Toolchain already present and confirmed on this machine: `rustc 1.97.1`, `pnpm`, `tempfile`

@@ -30,8 +30,17 @@ docs/*
 # Spec Kit runtime state (run logs and catalog cache; config and workflows stay tracked)
 /.specify/workflows/runs/
 /.specify/workflows/.cache/
-/.specify/extensions/companion/scripts/__pycache__/capture.cpython-314.pyc
-/.specify/extensions/companion/scripts/__pycache__/living_spec_fold.cpython-314.pyc
-/.specify/extensions/companion/scripts/__pycache__/spec_context.cpython-314.pyc
-/.specify/extensions/companion/scripts/__pycache__/spec_deltas.cpython-314.pyc
-/.specify/extensions/companion/scripts/__pycache__/task_sync.cpython-314.pyc
+__pycache__/
+*.py[cod]
+# Local worktree path for the in-flight feature — machine-specific, never shareable.
+/.specify/feature.json
+
+# Spec-kit process exhaust. The spec documents themselves (spec/plan/tasks/research/
+# data-model/quickstart/contracts/checklists, plus reviews/ and qa/qa-*.md) stay
+# tracked and are linked from CHANGELOG.md; what follows is machine output that only
+# means anything on the machine that produced it.
+specs/*/releases/
+specs/*/qa/responses/
+specs/*/screenshots/
+specs/*/qa/screenshots/
+specs/*/.spec-context.json

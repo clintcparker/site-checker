@@ -1,9 +1,0 @@
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.36s
-     Running unittests src/lib.rs (target/debug/deps/site_checker_lib-e4877af980e73d9f)
-
-running 2 tests
-test store::tests::the_old_two_lock_shape_would_lose_the_earlier_edit ... ok
-test store::tests::two_overlapping_edits_decide_from_the_current_entry ... ok
-
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 53 filtered out; finished in 0.04s
-

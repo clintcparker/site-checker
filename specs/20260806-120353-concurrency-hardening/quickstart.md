@@ -11,7 +11,7 @@ checked by eye, named openly in step 5 rather than left to be discovered at revi
 Run everything from this worktree:
 
 ```sh
-cd /Users/clint/src/clintcparker/site-checker--20260806-120325-section-1-docs
+cd ~/src/site-checker--20260806-120325-section-1-docs
 ```
 
 The Rust toolchain is already in place (rustc 1.97.1 — `Mutex::clear_poison` needs ≥ 1.77).
@@ -157,7 +157,7 @@ FR-016 (see [contracts/command-surface.md](./contracts/command-surface.md)).
 ## 7. Close-out: drain the roadmap in the *primary* checkout
 
 ```sh
-cd /Users/clint/src/clintcparker/site-checker    # NOT this worktree
+cd ~/src/site-checker    # NOT this worktree
 ```
 
 Edit `docs/ROADMAP.md` §1 there. `docs/` is gitignored, so an edit made in the worktree never

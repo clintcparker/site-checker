@@ -1,7 +1,7 @@
 # Phase 0 Research: Packaging & Distribution
 
 Every decision below was checked against something real — the local `name-on` checkout at
-`/Users/clint/src/clintcparker/name-on`, this repository's actual files, `cargo tree`, the
+`~/src/name-on`, this repository's actual files, `cargo tree`, the
 Tauri 2.9.3 config source in the local Cargo registry, or the GitHub API. Where a claim is
 inherited rather than verified, it says so.
 

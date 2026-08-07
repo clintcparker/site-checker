@@ -291,7 +291,7 @@ using `lock::recover(..)` directly and discarding the flag (silent, per R3).
 ## R10. `docs/ROADMAP.md` must be drained in the primary checkout, not here
 
 **Decision**: the roadmap edit that retires §1 is applied in
-`/Users/clint/src/clintcparker/site-checker`, not in this worktree.
+`~/src/site-checker`, not in this worktree.
 
 **Rationale**: `docs/` is in `.gitignore`, so an edit made here is invisible to the merge
 and the section stays stale on `main` — which is exactly what happened to

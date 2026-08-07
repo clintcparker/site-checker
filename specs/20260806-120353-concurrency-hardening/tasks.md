@@ -11,10 +11,10 @@ before the fix lands. This is not the template's optional TDD — it is a spec r
 test tasks below are not skippable.
 
 **Where this work happens**: the worktree
-`/Users/clint/src/clintcparker/site-checker--20260806-120325-section-1-docs` (branch
+`~/src/site-checker--20260806-120325-section-1-docs` (branch
 `20260806-120325-section-1-docs`). Every path below is relative to that worktree root, **with one
 deliberate exception**: T041 edits `docs/ROADMAP.md` in the *primary* checkout
-`/Users/clint/src/clintcparker/site-checker`, because `docs/` is gitignored and an edit made here
+`~/src/site-checker`, because `docs/` is gitignored and an edit made here
 never reaches `main` (research R10 — this is exactly how `003-durability` lost its roadmap edit).
 
 ## Format: `[ID] [P?] [Story] Description`
@@ -186,7 +186,7 @@ the state before either.
 - [X] T038 Verify the scope boundary by reading the diff's **file list**, not the diff: no file under `src/` may appear, and no file under `src-tauri/src/` other than `lock.rs`, `lib.rs`, `commands.rs`, `engine.rs`, `store.rs`. Any frontend change is a scope violation under FR-016 and should be challenged at review (contract "What the frontend must not need")
 - [X] T039 Confirm FR-018 is honoured: `git diff` shows no change to `Store::stage`, `save`, `staging_path`, or `load` in `src-tauri/src/store.rs`. The symlink-at-the-path behaviour stays as `003-durability` left it — undoing it would reopen the truncation window that feature exists to close
 - [ ] T040 Run [quickstart.md](./quickstart.md) §5, the seam checked by eye rather than by machine: `pnpm tauri dev`, confirm the app launches, the list loads, and checks start (the `SharedStore` rewrite touched every store access, so this is the smoke test for all of them); add, edit, and delete a site and confirm all three behave exactly as before (FR-007); read `SharedStore::lock` and confirm the recovery flag is wired to a `store-warning` emit with a message about the saved list; read `engine.rs`'s two `tasks` locks and `get_warning`'s `warning` lock and confirm none of them emits (FR-005, FR-003) **[~] Partially done:** `pnpm tauri dev` was run — the app compiled, launched, loaded the list and ran without panic, and left `sites.json` byte-identical. The add/edit/delete click-through was NOT performed (non-interactive session). All three by-eye code reads were done.
-- [X] T041 Drain §1 of `docs/ROADMAP.md` **in the primary checkout** `/Users/clint/src/clintcparker/site-checker`, NOT this worktree — `docs/` is gitignored and an edit made here never reaches `main` (research R10). Retire three of the four items; **keep the fourth** (the symlink-at-the-path note) with FR-018's reason attached. The retirement note should say the section closed three of four and why the fourth stays
+- [X] T041 Drain §1 of `docs/ROADMAP.md` **in the primary checkout** `~/src/site-checker`, NOT this worktree — `docs/` is gitignored and an edit made here never reaches `main` (research R10). Retire three of the four items; **keep the fourth** (the symlink-at-the-path note) with FR-018's reason attached. The retirement note should say the section closed three of four and why the fourth stays
 - [X] T042 Full merge bar (SC-007), nothing disabled, nothing skipped, no `#[ignore]`: `cd src-tauri && cargo test` (42 + new, 0 failed), `pnpm test` from the root (**exactly 30**, unmodified — SC-008), `cd src-tauri && cargo clippy -- -D warnings` clean
 - [X] T043 Update this file's Notes section with the final test counts and record which checks were verified by eye rather than by machine (the `SharedStore::lock` emit wiring and `add_site`'s refusal ordering), so the ship record states it rather than leaving it to be discovered at review
 
