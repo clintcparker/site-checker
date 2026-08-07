@@ -2,7 +2,8 @@
   "runs_recorded": [
     "before",
     "after",
-    "before (2026-08-06 17:44) — declined as a no-op, no images written; see environment.before_rerun_declined"
+    "before (2026-08-06 17:44) — declined as a no-op, no images written; see environment.before_rerun_declined",
+    "after (2026-08-06 18:22) — declined as a no-op, no images rewritten; the app's build and start were re-verified live on HEAD instead; see environment.after_rerun_declined"
   ],
   "run_type": "unattended",
   "baseline": "captured",
@@ -165,6 +166,41 @@
       "base_branch_health": "Not exercised. The unattended instruction to report a broken base branch does not apply: nothing was built or started this run. The last actual evidence stands — the base tree (2ec8788) compiled and launched twice in before_run, and main compiled and launched three times in after_run, with no build failure or startup panic.",
       "user_data": "Untouched, and verified rather than assumed. sites.json holds the user's 5 real sites and is byte-identical to /tmp/site-checker-sites-SAFETY-COPY.json; no sites.json.shots-backup exists, so no earlier run leaked; port 1420 is free and no site-checker or vite process is running. Because nothing was seeded, the step-3 backup was never created and the step-7 restore was never needed.",
       "skipped_md_deliberately_not_written": "SKIPPED.md means \"this feature has no UI surface\". That is false here — ui_relevance.verdict is ui-relevant and six real images exist. Writing it would also poison a future `after` run, which treats SKIPPED.md as a prediction to verify and would then skip a feature that genuinely has captured UI evidence."
+    },
+    "after_rerun_declined": {
+      "when": "2026-08-06 ~18:22 PDT",
+      "invocation": "mode: after, target branch: main — unattended re-invocation of the same skill on the same resolved FEATURE_DIR, instructed to reuse the before pass's manifest so the pair stays comparable.",
+      "action_taken": "No image was captured, rewritten, or deleted. All six PNGs in before/ and after/ are still the ones the 14:55–15:12 after pass committed. The app WAS built and launched once as a live smoke test — see app_health — because the unattended brief asks specifically for a non-building or non-starting app to be surfaced rather than dropped. This manifest is the only file that changed.",
+      "why_no_recapture": {
+        "subject_identity": "git diff a99ccb8..HEAD -- src index.html src-tauri package.json pnpm-lock.yaml is EMPTY. Every commit since the after pass (392c91a, c22d661, aeb400c, 1a5b39b, 94d8533, 42f44ca, 3e9972c) touched only .specify/ workflow files, capabilities/backend/spec.md, and specs/ documents. The application tree that after/ photographed and the tree on HEAD today are byte-identical, so a re-shoot cannot show different content — only different capture conditions.",
+        "display_scale_mismatch": "DECISIVE, and verified empirically rather than assumed. The committed pair is 1x: 720x480 and 480x320, captured on the 5120x1440 physical display in use from 14:25 to 15:12. Today's session runs on a 'Screen Sharing Virtual Display' — 2880x1800 physical for 1440x900 points, a 2x backing scale. Two independent probes confirm the consequence: screencapture -R 100,100,720,480 returned a 1440x960 PNG, and a live grab of the real 720x480 app window also returned 1440x960. A re-shot after/ would therefore be 1440x960 and 960x640, and could not be per-pixel compared against a 720x480 and 480x320 before/.",
+        "what_recapturing_would_destroy": "Overwriting after/ today would invalidate every number in comparison.results and comparison.per_view_breakdown — including the strongest single piece of evidence in this manifest, warning-banner-narrow at 0 differing pixels — and those numbers are published in PR #5. They could not be recomputed at the new scale without also re-shooting before/, which would mean rebuilding 2ec8788 and discarding the verified baseline as well. Net effect: verified evidence destroyed, zero content gained, because the subject tree is identical.",
+        "instruction_read": "The invocation asked to reuse the before pass's manifest so the pair is comparable. Honouring that intent is exactly what forbids a re-shoot here: on this display the new images could not be comparable to the baseline, so re-capturing would defeat the stated reason for reusing the manifest rather than serve it."
+      },
+      "environment_capable": true,
+      "capture_preflight": [
+        "CGGetActiveDisplayList: cg_error=0, active_displays=1",
+        "AXIsProcessTrusted()=true",
+        "/usr/bin/stat -f%Su /dev/console returns 'clint'",
+        "Probe full-screen grab: 2880x1800, 100.00% non-black (5184000/5184000 px)",
+        "Scale probe: a 720x480-point region captured as 1440x960 px — 2x, versus the 1x committed set"
+      ],
+      "capture_not_blocked_note": "Recorded explicitly so this no-op is not misread as a repeat of before_run_blocked_attempt. Capture was fully available at decision time — the app window was in fact grabbed successfully during the smoke test — and was declined on comparability grounds, not blocked.",
+      "app_health": {
+        "verdict": "healthy — no implementation defect to surface",
+        "commit": "HEAD = main = 3e9972c, working tree clean for src, index.html, src-tauri, package.json and pnpm-lock.yaml",
+        "app_built": true,
+        "app_launched": true,
+        "build_log": "vite v6.4.3 ready in 109 ms on port 1420; cargo 'Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.47s'; 'Running target/debug/site-checker'. node_modules was already present, so no pnpm install was needed.",
+        "window_observed": "id=16996 pid=65662 layer=0 bounds=360,128,720x480 owner=site-checker name='Site Checker', up roughly 10s after launch.",
+        "runtime_evidence": "The whole dev log was grepped for panic / error / backtrace: none. The window rendered the user's five real sites loaded from the untouched sites.json, all five resolved from Pending to Up with fresh relative timestamps, with no #banner and no error line. Store load, the check scheduler and the site-status event path therefore all ran end to end on the shipped code.",
+        "render_verification": "Confirmed by an actual grab that was inspected — 1440x960, 99.94% non-black — not by window-existence alone. It was written to /tmp, never into the repo, and deleted afterwards because it showed the user's private site list.",
+        "seeded": false,
+        "why_not_seeded": "Nothing was seeded because nothing was captured. Leaving the real sites.json in place is strictly safer than running the step-3 backup and step-7 restore cycle for no images, and it made the smoke test stronger: the app was exercised against the user's actual five-site store rather than a synthetic seed.",
+        "why_this_matters": "The unattended brief treats a non-building or non-starting app as an implementation defect that ship must surface. It is not one here. The shipped tree built and started cleanly again today — three hours later, on a different display, from a cold-ish cargo cache — which is fresh evidence rather than a restatement of the after pass's three launches."
+      },
+      "user_data": "Untouched and verified rather than assumed. sites.json was safety-copied out of tree to /tmp/site-checker-sites-SAFETY-after-rerun-20260806-1822.json before the launch. After teardown its sha1 was still 7150bef89871c83ceb3b9064e67b8ac1e499ee56 — the same hash the after pass restored — and a full diff against the safety copy was clean. No sites.json.shots-backup exists, so no run has leaked one. The dev process tree was torn down by process group (TERM, then KILL); afterwards no site-checker, tauri or vite process survived, port 1420 was free, and the window was gone from the window list.",
+      "repo_footprint": "Nothing outside FEATURE_DIR/screenshots/ was modified. The dev-server log went to /tmp/tauri-dev-after-rerun-20260806.log and the capture helpers live at /tmp/shots-helper and /tmp/seq-helper, all outside the checkout, so none of them could be swept up by the git auto-commit hooks."
     }
   },
   "notes": [
@@ -176,6 +212,8 @@
     "The user's real sites.json was moved to sites.json.shots-backup and additionally copied out of tree to /tmp/site-checker-sites-SAFETY-after-run-20260806-1455.json before seeding. It was restored at the end and verified three ways: sha1 7150bef89871c83ceb3b9064e67b8ac1e499ee56 (unchanged), a full diff against the safety copy (clean), and confirmation that no .shots-backup file was left behind. Each dev process tree was launched into its own process group (perl setpgrp) and torn down with kill -TERM then -KILL on the group; after every teardown no site-checker, tauri or vite process survived and port 1420 was confirmed free.",
     "Nothing outside FEATURE_DIR/screenshots/ was modified in the repo. Dev-server logs went to /tmp/tauri-dev-after*.log and the capture helpers to /tmp, both outside the checkout, so neither could be picked up by the git auto-commit hooks.",
     "tasks.md still has T025 and T040 marked incomplete ('click-through NOT performed'). This run exercised more of them — the app launched three times, the list loaded, checks ran, an add was attempted and correctly refused, and sites.json came back byte-identical — but the delete and edit click-throughs were still not exercised, and this command does not modify feature artifacts other than screenshots/.",
-    "A second `before` invocation arrived on 2026-08-06 ~17:44, after the feature had already merged to main (PR #5) with a complete, per-pixel-diffed before/after pair. It was declined as a no-op and no images were written — see environment.before_rerun_declined for the full reasoning, the preflight showing capture was available (not blocked), and the verification that the user data file was never touched. The short version: the feature is shipped, so there is no pending change for a baseline to precede, and either way of \"capturing\" would have destroyed verified evidence rather than adding any."
+    "A second `before` invocation arrived on 2026-08-06 ~17:44, after the feature had already merged to main (PR #5) with a complete, per-pixel-diffed before/after pair. It was declined as a no-op and no images were written — see environment.before_rerun_declined for the full reasoning, the preflight showing capture was available (not blocked), and the verification that the user data file was never touched. The short version: the feature is shipped, so there is no pending change for a baseline to precede, and either way of \"capturing\" would have destroyed verified evidence rather than adding any.",
+    "A second `after` invocation arrived on 2026-08-06 ~18:22 and was likewise declined as a no-op — see environment.after_rerun_declined. Unlike the before re-run, an after re-run is not semantically wrong (main's tip IS the after state), so it was assessed on its merits and refused for a different, measurable reason: this session's display has a 2x backing scale, so a re-shot after/ would be 1440x960 while the committed before/ is 720x480. The two sets could not be per-pixel compared, and the comparison numbers already published in PR #5 would be destroyed to gain nothing — the app tree is byte-identical to the one after/ was shot from. What this run DID add is fresh liveness evidence: the app was built and launched once on HEAD (3e9972c) and rendered the user's real five-site list with every site Up and no panic, so the unattended brief's 'report a broken app' branch is answered with a live result rather than an inherited claim.",
+    "The 2x scale finding is worth carrying forward: any future screenshot pass for this repo should record the display's backing scale alongside the window size, because a pair captured across a scale change is not comparable no matter how carefully the window is sized. The committed sets here are all 1x."
   ]
 }
