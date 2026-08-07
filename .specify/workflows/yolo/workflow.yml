@@ -2,7 +2,7 @@ schema_version: "1.0"
 workflow:
   id: "yolo"
   name: "Full SDD Cycle - no gates"
-  version: "0.2.0"
+  version: "0.2.1"
   author: "clintcparker"
   description: "Runs worktree → specify → plan → tasks → implement without review gates. Requires the `worktrees` extension."
 
@@ -53,9 +53,16 @@ steps:
   #
   # This step is idempotent (see speckit.worktrees.create Outline step 0). When the
   # before_specify hook has already fired, it finds the session inside a worktree and
-  # no-ops, so declaring both costs nothing. Every step below therefore runs *in the
-  # worktree* — they are the same agent session, so the working directory carries
-  # forward.
+  # no-ops, so declaring both costs nothing.
+  #
+  # Where the later steps actually run depends on the `session` field this step reports,
+  # and in an unattended run it is usually NOT the worktree. Moving the session needs the
+  # EnterWorktree tool, which requires interactive approval that nobody is here to give,
+  # so the normal outcome is worktree_isolation=created with session=primary: the branch
+  # lives in its worktree, the session's working directory is still the primary checkout,
+  # and correctness rides on the SPECIFY_INIT_DIR / SPECIFY_FEATURE_DIRECTORY overrides
+  # this step emits. Every later step must honor them; nothing enforces that, and this
+  # workflow has no ship step to record it, so the run summary is the only place it lands.
   #
   # It also makes the `worktrees` extension a hard dependency of this workflow, which
   # `requires` cannot express (it recognizes only speckit_version and integrations).
@@ -81,10 +88,24 @@ steps:
         worktree_isolation=failed with the branch name and continue the workflow in
         place.
 
-        This workflow has no ship step, so there is no pull request to carry the
-        outcome. Record which case applied in the run summary instead, and state a
-        recovered or failed isolation prominently — it is the only record the user
-        gets.
+        EnterWorktree needs interactive approval and nobody is here to give it, so expect
+        the call to be refused and expect session=primary. That is the normal outcome of
+        an unattended run, not a failure — but do NOT let the spec land in the primary
+        checkout because of it. Emit SPECIFY_INIT_DIR and SPECIFY_FEATURE_DIRECTORY in the
+        fields block exactly as Outline step 3 requires, and export SPECIFY_INIT_DIR for
+        every .specify/scripts/** invocation from here to the end of the run.
+
+        REPORT, DO NOT REMEDY. Creating the branch inside its worktree is this step's whole
+        mandate. If the resolved base ref lags a local branch of the same name, or the spec
+        description names gitignored or untracked paths that cannot exist in a fresh
+        worktree, NAME them and move on: no merge, rebase, cherry-pick, reset or pull to
+        close the gap, and no copying untracked files across. "Never prompt" is not licence
+        to act unilaterally.
+
+        This workflow has no ship step, so there is no pull request to carry the outcome.
+        Record BOTH worktree_isolation and session in the run summary instead, along with
+        anything Outline step 4 reported, and state a recovered, failed, or degraded
+        isolation prominently — it is the only record the user gets.
 
   - id: specify
     command: speckit.specify

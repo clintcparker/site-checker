@@ -2,7 +2,7 @@ schema_version: "1.0"
 workflow:
   id: "send-it-checked"
   name: "Spec to PR, unattended, with review and QA"
-  version: "0.3.0"
+  version: "0.3.1"
   author: "clintcparker"
   description: "send-it plus staff review and QA, each with one fix-and-re-run pass, before shipping — with before/after UI screenshots. Requires the `worktrees`, `screenshots`, `ship`, `staff-review` and `qa` extensions."
 
@@ -48,10 +48,17 @@ steps:
   #
   # This step is idempotent (see speckit.worktrees.create Outline step 0). When the
   # before_specify hook has already fired, it finds the session inside a worktree and
-  # no-ops, so declaring both costs nothing. Every step below therefore runs *in the
-  # worktree* — they are the same agent session, so the working directory carries
-  # forward. Do not add a step that assumes the primary checkout is on the feature
-  # branch.
+  # no-ops, so declaring both costs nothing.
+  #
+  # Where the later steps actually run depends on the `session` field this step reports,
+  # and in an unattended run it is usually NOT the worktree. Moving the session needs the
+  # EnterWorktree tool, which requires interactive approval that nobody is here to give,
+  # so the normal outcome is worktree_isolation=created with session=primary: the branch
+  # lives in its worktree, the session's working directory is still the primary checkout,
+  # and correctness rides on the SPECIFY_INIT_DIR / SPECIFY_FEATURE_DIRECTORY overrides
+  # this step emits. Every later step must honor them; nothing enforces that, which is why
+  # ship surfaces session=primary in the pull request description. Do not add a step that
+  # assumes the primary checkout is on the feature branch either.
   - id: worktree
     command: speckit.worktrees.create
     integration: "{{ inputs.integration }}"
@@ -73,8 +80,22 @@ steps:
         worktree_isolation=failed with the branch name and continue the workflow in
         place.
 
-        Record which case applied and carry it forward, so the ship step can surface a
-        recovered or failed isolation in the pull request description.
+        EnterWorktree needs interactive approval and nobody is here to give it, so expect
+        the call to be refused and expect session=primary. That is the normal outcome of
+        an unattended run, not a failure — but do NOT let the spec land in the primary
+        checkout because of it. Emit SPECIFY_INIT_DIR and SPECIFY_FEATURE_DIRECTORY in the
+        fields block exactly as Outline step 3 requires, and export SPECIFY_INIT_DIR for
+        every .specify/scripts/** invocation from here to the end of the run.
+
+        REPORT, DO NOT REMEDY. Creating the branch inside its worktree is this step's whole
+        mandate. If the resolved base ref lags a local branch of the same name, or the spec
+        description names gitignored or untracked paths that cannot exist in a fresh
+        worktree, NAME them and move on: no merge, rebase, cherry-pick, reset or pull to
+        close the gap, and no copying untracked files across. "Never prompt" is not licence
+        to act unilaterally.
+
+        Carry BOTH worktree_isolation and session forward, so the ship step can surface a
+        recovered, failed, or degraded isolation in the pull request description.
 
   - id: specify
     command: speckit.specify
@@ -209,14 +230,25 @@ steps:
         change with a descriptive conventional-commit message instead of
         prompting to commit or stash.
 
-        WORKTREE ISOLATION — the worktree step reported an outcome; carry it
+        WORKTREE ISOLATION — the worktree step reported two fields; carry both
         through. If the run reported worktree_isolation=failed, say so plainly
         near the TOP of the pull request description: the run executed in the
         primary checkout rather than an isolated worktree, and name the branch.
         If it reported worktree_isolation=recovered, note that the primary
         checkout was moved off the feature branch to the base ref so the
         worktree could be attached — the user will want to know their working
-        directory changed under them. Any other outcome needs no mention.
+        directory changed under them. If it reported session=primary for any
+        reason other than enter_worktree being false, note that too: the branch
+        is in its worktree but the agent session ran from the primary checkout
+        via SPECIFY_INIT_DIR, so every write depended on that override holding
+        rather than on the working directory. Otherwise no mention is needed.
+
+        Also carry forward anything the worktree step reported under Outline
+        step 4 — a base ref behind its local counterpart, or feature inputs that
+        are gitignored and therefore absent from the worktree. Both change how
+        this pull request should be read: the first means the branch may not
+        contain commits the reviewer has locally, the second means the feature
+        was built against files no reviewer can see.
 
         If any tasks in tasks.md are still incomplete, do not stop — proceed
         and list the incomplete tasks in the pull request description.
