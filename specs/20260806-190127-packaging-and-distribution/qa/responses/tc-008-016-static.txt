@@ -1,0 +1,231 @@
+########## TC-008 — release.yml needs: chain reaches preflight (FR-018, SC-005) ##########
+jobs and their direct needs:
+  preflight  needs: (none)
+  test       needs: ['preflight']
+  build      needs: ['preflight', 'test']
+  release    needs: ['build']
+  homebrew   needs: ['preflight', 'release']
+  test       reaches preflight: True
+  build      reaches preflight: True
+  release    reaches preflight: True
+  homebrew   reaches preflight: True
+
+  build has preflight as a DIRECT need (needed for needs.preflight.outputs.version): True
+  release.yml references needs.preflight.outputs.version: True
+    # carries direct dependencies, so `needs.preflight.outputs.version` below
+    VERSION: ${{ needs.preflight.outputs.version }}
+    VERSION: ${{ needs.preflight.outputs.version }}
+
+  VERDICT: all jobs reach preflight = True; build's direct need present = True
+exit=0  (expect 0)
+
+########## TC-009 — artifact naming is consistent end to end (FR-010, FR-011) ##########
+--- build: zip name produced ---
+203:          ditto -c -k --sequesterRsrc --keepParent "$APP" "site-checker-${TARGET}.zip"
+116:      TARGET: ${{ matrix.arch }}-apple-darwin
+--- build: upload path ---
+205:      - uses: actions/upload-artifact@v4
+206-        with:
+207-          name: site-checker-${{ matrix.arch }}
+208-          path: site-checker-${{ matrix.arch }}-apple-darwin.zip
+--- release: attached files ---
+225:          files: |
+226-            artifacts/site-checker-aarch64/site-checker-aarch64-apple-darwin.zip
+227-            artifacts/site-checker-x86_64/site-checker-x86_64-apple-darwin.zip
+228-
+229-  # The only writer of clintcparker/homebrew-tap. It cannot run before a release
+--- homebrew: download pattern ---
+249:              --pattern "site-checker-${arch}-apple-darwin.zip" \
+--- homebrew: sha source ---
+269:          sha() { sha256sum "assets/site-checker-$1-apple-darwin.zip" | cut -d' ' -f1; }
+--- verify: asset URL ---
+50:            asset="site-checker-${arch}-apple-darwin.zip"
+--- cask url ---
+22:  url "https://github.com/clintcparker/site-checker/releases/download/v#{version}/site-checker-#{arch}-apple-darwin.zip"
+
+########## TC-010 — cask stanza split (FR-003, FR-004, SC-010, Constitution II) ##########
+occurrences of the data directory in the template: 2
+--- every line naming the app id ---
+29:  uninstall quit: "com.clintparker.site-checker"
+35:    "~/Library/Application Support/com.clintparker.site-checker",
+--- uninstall stanza ---
+29:  uninstall quit: "com.clintparker.site-checker"
+30-
+--
+32:  # `brew uninstall` keeps it and only `brew uninstall --zap` removes it.
+33-  # `trash:` rather than `delete:` — the removal is recoverable.
+--- zap stanza ---
+34:  zap trash: [
+35-    "~/Library/Application Support/com.clintparker.site-checker",
+36-  ]
+37-end
+--- delete: must not appear ---
+33:  # `trash:` rather than `delete:` — the removal is recoverable.
+--- app stanza (FR-002 cask not formula) ---
+27:  app "Site Checker.app"
+--- arch stanza (FR-005) ---
+16:  arch arm: "aarch64", intel: "x86_64"
+--- template header (FR-012) ---
+# Homebrew cask TEMPLATE for site-checker — do not copy to the tap by hand.
+# To use: brew install clintcparker/tap/site-checker
+#
+# The "homebrew" job in .github/workflows/release.yml renders this file on every
+# release: it substitutes the version and per-architecture sha256 placeholders
+# below (computed from the assets actually attached to the GitHub Release) and
+# commits the result to clintcparker/homebrew-tap as Casks/site-checker.rb.
+# The render step fails the release if any placeholder is missing here or
+# survives into the rendered output.
+#
+# A cask rather than a formula because Site Checker ships an application bundle
+# rather than a command-line binary. Homebrew resolves a tap-qualified name
+# against both Formula/ and Casks/, so the advertised install line is unchanged.
+
+########## TC-011 — .gitignore shape and docs/how-to tracking (T003, T037, FR-024) ##########
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# Ignore docs/ contents, but keep docs/how-to/ tracked. The exact shape matters:
+# git will not re-include a file whose parent directory is excluded, so this must
+# exclude the directory's *contents* (docs/*) rather than the directory itself.
+docs/*
+!docs/how-to/
+# Spec Kit runtime state (run logs and catalog cache; config and workflows stay tracked)
+--- git check-ignore docs/how-to/release.md (expect NO match) ---
+exit=1  (expect 1 = not ignored)
+--- git check-ignore docs/ROADMAP.md (expect still ignored) ---
+.gitignore:28:docs/*	docs/ROADMAP.md
+exit=0  (expect 0 = ignored)
+--- is release.md tracked on this branch? ---
+docs/how-to/release.md
+TRACKED
+--- does it appear in the PR diff vs main? ---
+docs/how-to/release.md
+
+########## TC-012 — how-to covers procedure / setup / recovery (FR-024, SC-011) ##########
+headings:
+1:# How to Release Site Checker
+8:## Release procedure
+39:## One-time setup checklist
+98:### Why signing is not optional here
+108:## What pre-flight can and cannot tell you
+122:## Re-running a failed release
+148:## Building a DMG locally
+--- the seven secrets named? ---
+  TAP_PUSH_TOKEN                 3
+  APPLE_CERTIFICATE              2
+  APPLE_CERTIFICATE_PASSWORD     1
+  APPLE_SIGNING_IDENTITY         1
+  APPLE_API_ISSUER               1
+  APPLE_API_KEY_ID               1
+  APPLE_API_KEY                  4
+--- annotated tag procedure ---
+11:git tag -a v1.0.0 -m "site-checker 1.0.0"
+--- presence != validity caveat ---
+--- re-run / recovery ---
+122:## Re-running a failed release
+124:A partially failed run can be re-run from the same tag and converges rather than
+130:  byte-identical to what the tap already holds, so re-runs do not create empty
+133:**"Unchanged content → no commit" is not "re-running is a no-op."** A re-run
+134:rebuilds, and a Tauri build is not bit-reproducible — timestamps differ and the
+138:when the release job did not re-upload, which in practice means re-running the
+--- local DMG note ---
+148:## Building a DMG locally
+150:Nothing distributes a DMG any more — the cask serves a `.zip` containing the
+152:automated build can reach the DMG bundler. That is deliberate: laying out a DMG's
+159:pnpm tauri build --bundles dmg
+
+########## TC-013 — README install/uninstall (T018, FR-003, FR-004) ##########
+13:brew install clintcparker/tap/site-checker
+21:brew uninstall site-checker          # app gone, your site list kept
+22:brew uninstall --zap site-checker    # app gone, your site list trashed too
+25:The site list is only ever removed by `--zap`, and it goes to the Trash rather
+29:`sites.json`, so your list comes across untouched. Homebrew installs to
+30:`/Applications`; if a hand-built `Site Checker.app` is already sitting there,
+
+########## TC-014 — SC-003: files carrying a hand-maintained version number ##########
+--- src-tauri/Cargo.toml ---
+3-# Inert sentinel. The real version is written here by .github/workflows/release.yml
+4-# from the pushed tag (v1.2.3 -> 1.2.3) at build time, and tauri.conf.json has no
+5-# "version" key so this is what the bundle reports. Hand-editing it fails CI.
+6:version = "0.0.0"
+--- package.json ---
+4:  "version": "0.0.0",
+--- tauri.conf.json ---
+(no version key — correct)
+--- Cargo.lock own entry ---
+3377:name = "site-checker"
+3378-version = "0.0.0"
+3379-dependencies = [
+--- bundle targets (FR-016) ---
+['app']
+--- app.windows untouched? ---
+[
+ {
+  "title": "Site Checker",
+  "width": 720,
+  "height": 480,
+  "minWidth": 480,
+  "minHeight": 320,
+  "resizable": true
+ }
+]
+
+########## TC-015 — FR-025 / FR-026 record edits (PRIMARY CHECKOUT) ##########
+--- ROADMAP §2 ---
+91:## 1. Recorded behaviour (no action expected)
+121:## 2. Build, packaging & distribution
+192:## 3. Test-coverage gaps
+237:## 4. Out of scope for v1 (feature roadmap)
+252:## Environment & repo notes (not code items)
+--- size expectation line ---
+```bash
+du -sh src-tauri/target/release/bundle/macos/Site\ Checker.app
+```
+
+Expected: ~15 MB. This line originally said "single-digit MB", with a note to investigate anything larger before shipping. The investigation happened: `cargo tree -e normal` attributes the difference to `aws-lc-rs`/`aws-lc-sys`, which compiles native C and arrives because reqwest 0.13's `default-tls` resolves to rustls with the `aws-lc-rs` provider rather than to `native-tls`. That is unremarkable for a Tauri app with a bundled TLS stack, and the backend is deliberately left alone — swapping it would change the code performing every TLS handshake the product makes. Recorded by `20260806-190127-packaging-and-distribution` (research R7).
+
+- [ ] **Step 3: Install and run it for real**
+
+```bash
+cp -R src-tauri/target/release/bundle/macos/Site\ Checker.app /Applications/
+open /Applications/Site\ Checker.app
+--- CHANGELOG:327 left alone? ---
+  `productName: "Site Checker"` and `identifier: com.clintparker.site-checker`
+  and never referenced the crate name, so `pnpm tauri build --bundles app` still
+  emits `Site Checker.app` at the same 15 MB.
+- No persisted or IPC field was renamed. `sites.json` keeps its shape, its path,
+  and its load semantics — only the warning text changed.
+
+########## TC-016 — CHANGELOG entry on the branch (T040) ##########
+# Changelog
+
+All notable changes to Site Checker are recorded here.
+
+## Packaging & distribution — 2026-08-06
+
+Site Checker gets an install path. `brew install clintcparker/tap/site-checker`
+replaces "clone the repo, install two toolchains, and run `pnpm tauri build`",
+and publishing a version becomes pushing one annotated `v<MAJOR>.<MINOR>.<PATCH>`
+tag. **Nothing the application does changes** — `src/` and `src-tauri/src/` are
+untouched, and the test counts are unmoved at 55 Rust and 30 frontend.
+
+Spec: [`specs/20260806-190127-packaging-and-distribution/spec.md`](specs/20260806-190127-packaging-and-distribution/spec.md) ·
+Plan: [`specs/20260806-190127-packaging-and-distribution/plan.md`](specs/20260806-190127-packaging-and-distribution/plan.md) ·
+Tasks: [`specs/20260806-190127-packaging-and-distribution/tasks.md`](specs/20260806-190127-packaging-and-distribution/tasks.md) ·
+Research: [`research.md`](specs/20260806-190127-packaging-and-distribution/research.md)
+
+### Added
+
+- **A Homebrew cask** — `install/homebrew/site-checker.rb`, the canonical
+  template, rendered by automation into `clintcparker/homebrew-tap` as
+  `Casks/site-checker.rb` and never written there by hand. A cask rather than a
+  formula because Site Checker ships an application bundle; the advertised
+  install line is unchanged either way, because Homebrew resolves a
+  tap-qualified name against both directories.
+- **The first mechanism in this project's history that can delete your site
+  list** — and it is opt-in. `brew uninstall` keeps `sites.json`;
+  `brew uninstall --zap` moves it to the Trash. The data directory appears in
+  exactly one stanza, and it is `zap`. That split, not discipline, is what makes
+  "config is sacred" hold across an uninstall path.

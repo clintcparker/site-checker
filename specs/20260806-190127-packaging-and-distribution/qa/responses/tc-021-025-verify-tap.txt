@@ -1,0 +1,47 @@
+########## TC-021 — verify-install-channels.yml step 1, run live (FR-019/FR-020) ##########
+Expected today: no v* release exists, so the step must fail with a named error
+rather than proceeding against an empty tag.
+raw jq result: []
+::error::no v* release exists — site-checker has never been released (see docs/how-to/release.md)
+step exit=1  (correct — fails closed)
+elapsed=0s
+
+--- same selector against a repo that HAS releases, to prove the selector works ---
+v1.0.0
+(a non-empty tag here means the ^v[0-9] selector is functional, not just failing closed)
+
+########## TC-022 — verify step 3: tap cask fetch, run live ##########
+Expected today: Casks/site-checker.rb does not exist in the tap yet.
+::error::could not fetch Casks/site-checker.rb from clintcparker/homebrew-tap
+step exit=1  (correct — fails closed on a missing cask)
+--- what the tap does serve today ---
+Formula/name-on.rb -> HTTP 200
+Casks/site-checker.rb -> HTTP 404
+
+########## TC-023 — review finding R002: is raw.githubusercontent.com CDN-cached? ##########
+cache-control: max-age=300
+via: 1.1 varnish
+x-served-by: cache-sjc10051-SJC
+expires: Fri, 07 Aug 2026 03:14:31 GMT
+source-age: 0
+
+########## TC-024 — verify step 2: asset reachability against a private repo ##########
+Demonstrates why FR-001 is blocked: an unauthenticated GET of a private repo's
+release asset is exactly what brew does.
+private-repo release asset URL -> HTTP 404
+
+########## TC-025 — homebrew job 'Commit cask to tap' idempotence (FR-014, SC-007) ##########
+warning: You appear to have cloned an empty repository.
+--- run 1: tap has no Casks/ at all (the first-release case) ---
+committed: site-checker 1.0.0
+--- run 2: identical content (the skip path R14 says is the real one) ---
+Cask unchanged — skipping commit (idempotent re-run)
+--- run 3: checksums changed by a rebuild (R14's honest caveat) ---
+committed: site-checker 1.0.0
+--- resulting tap history (expect exactly 2 site-checker commits, one Casks file) ---
+75a26fe site-checker 1.0.0
+ad5c4b7 site-checker 1.0.0
+5341e45 seed
+--- Casks/ ---
+site-checker.rb
+count: 1
