@@ -2,6 +2,48 @@
 
 All notable changes to Site Checker are recorded here.
 
+## Concurrency & robustness hardening — verification round 2 — 2026-08-06
+
+**No code change.** Nothing under `src-tauri/src/` or `src/` differs from what
+shipped in the entry below; `git diff 8feb989..HEAD` over both trees is empty.
+What this entry records is evidence, and one thing that evidence closed.
+
+Spec: [`specs/20260806-120353-concurrency-hardening/spec.md`](specs/20260806-120353-concurrency-hardening/spec.md) ·
+Review: [`reviews/review-20260806-175302.md`](specs/20260806-120353-concurrency-hardening/reviews/review-20260806-175302.md) ·
+QA: [`qa/qa-20260806-181800.md`](specs/20260806-120353-concurrency-hardening/qa/qa-20260806-181800.md)
+
+### Verified
+
+- **The shell layer was finally exercised against a running window.** `commands.rs`
+  has no automated coverage by design (Constitution IV, research R7), and the manual
+  click-through standing in for it had only ever been half-run — a *refused* add, and
+  nothing else. This round drove the real window through the macOS accessibility API
+  with synthetic mouse clicks and performed a successful add, an edit, and a delete,
+  hashing and parsing `sites.json` after each. The edit kept its list index; the
+  delete did not come back after a relaunch. That closes the verification gap review
+  finding R002 was tracking.
+- **FR-011 and the warning channel are now proven at runtime.** With the app running,
+  the store directory was made unwritable and a valid site added: the banner rendered
+  *"Could not write sites.json: Permission denied (os error 13)"*, the row appeared
+  anyway, its check ran, and `sites.json` on disk stayed byte-identical. Because
+  `lock.rs:103` is the crate's only `store-warning` emit and FR-004's warning goes
+  through the same private `warn()` helper, this is also the first runtime proof of
+  the mechanism FR-004 reuses.
+- **Both verdicts were re-derived, not inherited.** All three merge gates were re-run
+  from a clean checkout — 55/0/0 Rust, 30/0 frontend unmodified, clippy clean at
+  `--all-targets -- -D warnings`. The lock inventory (nine sites, all recovering),
+  FR-015/FR-016 by file list, and FR-018 by removal audit were each re-checked from
+  source.
+
+### Known gaps
+
+- The poison → `warn()` trigger still has no runtime assertion (QA TC-005, PARTIAL).
+  No sequence of clicks can poison a mutex; closing it needs the `tauri` `test`
+  feature and a mock-app harness, declined at research time.
+- Review findings R001 (the source-text lock guard under-covers), R003, and R004
+  (`load` accepts duplicate ids) remain open and are still not in `docs/ROADMAP.md`.
+  That miss is itself tracked as R005.
+
 ## Concurrency & robustness hardening — 2026-08-06
 
 The three actionable items from roadmap section 1, all in the Rust core. The
