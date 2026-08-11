@@ -1,10 +1,25 @@
 # Feature Specification: v1 Cleanup — Scaffold Leftovers & Message Clarity
 
+> ## ⛔ Superseded — do not implement from this document
+>
+> **Superseded 2026-08-05 by [`specs/001-scaffold-cleanup/`](../001-scaffold-cleanup/spec.md)**,
+> which covers the same five roadmap §1 items and is the one that shipped (PR #1, merged).
+> This cycle never reached a `tasks.md` and never produced a commit.
+>
+> It is kept rather than deleted for one reason: its branch name is the worktree
+> `001-scaffold-cleanup` actually ran in, which
+> [`001-scaffold-cleanup/tasks.md`](../001-scaffold-cleanup/tasks.md) records under **T001** —
+> so deleting this directory would orphan that reference. Read the research and
+> data-model here as background if you like; take nothing here as a statement of intent.
+>
+> *(Marked during the 2026-08-11 records reconciliation, which found this directory still
+> reading `Status: Draft` and referenced by nothing else.)*
+
 **Feature Branch**: `20260805-150909-cleanup-scaffold-leftovers`
 
 **Created**: 2026-08-05
 
-**Status**: Draft
+**Status**: ~~Draft~~ **Superseded** by `specs/001-scaffold-cleanup/`
 
 **Input**: User description: "tackle section 1 of docs/ROADMAP.md"
 

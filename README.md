@@ -7,12 +7,15 @@ that?
 Not a monitoring service — no alerting, no history, no SLA math. One Mac, one
 person.
 
-## Install
+![Site Checker's window: a table of sites with URL, status dot, and last-checked
+time, an add/edit form beneath it, and a "Launch at login"
+checkbox.](assets/screenshot.png)
 
-> **Not released yet.** The install pipeline is built and tested, but no version
-> has been published, so the command below does not work today. Until a release
-> exists, [build it yourself](#build-it-yourself). Progress is in
-> [CHANGELOG.md](CHANGELOG.md).
+That is the whole application. Sites you add are checked on their own interval,
+the dot goes green or red, and the column on the right tells you how long ago
+that was confirmed.
+
+## Install
 
 ```sh
 brew install clintcparker/tap/site-checker
