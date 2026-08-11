@@ -6,6 +6,25 @@ name: CI
 # Deliberately separate from release.yml and verify-install-channels.yml: a red
 # check here means the code is broken, which is a different question from a red
 # release or a broken install channel.
+#
+# Action pins track the Node runtime, not the newest major. The rule is the
+# lowest major that runs on node24, because a stale runtime does not fail — it
+# emits a deprecation annotation on a green run and keeps working until GitHub
+# stops force-upgrading it, and jumping past the minimum only absorbs behavior
+# changes this repo has no reason to take on.
+#
+# Two pins sit one major above that minimum, deliberately. setup-node@v5 and
+# pnpm/action-setup@v5 are already node24, but both are pinned at v6: v6 of
+# setup-node narrows its automatic caching to npm only, and all three of its
+# call sites pass `cache: pnpm` explicitly, so that narrowing is never
+# consulted; v6 of action-setup only adds pnpm 11 support and still self-updates
+# to the `packageManager` version package.json pins. Neither v6 reaches this
+# repo, so taking them costs nothing and shortens the next bump.
+#
+# The floor all of this implies is Actions runner >= 2.327.1, which every
+# GitHub-hosted runner is well past; a self-hosted runner would have to be
+# checked. .github/dependabot.yml is what surfaces the next such deprecation as
+# a PR rather than as an annotation nobody reads.
 
 on:
   push:
@@ -25,7 +44,7 @@ jobs:
   rust:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -68,11 +87,11 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm

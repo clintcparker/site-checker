@@ -119,6 +119,24 @@ what pre-flight exists to avoid.
 Credential expiry between releases is caught by the daily **Verify Install
 Channels** run, not by a fast pre-flight message.
 
+## The runner floor release.yml assumes
+
+Every JS action in `release.yml` is pinned to a major that runs on **Node 24** —
+`actions/checkout@v5`, `actions/setup-node@v6`, `pnpm/action-setup@v6`,
+`actions/upload-artifact@v6`, `actions/download-artifact@v7`,
+`softprops/action-gh-release@v3`. Those majors require **Actions runner
+≥ 2.327.1**.
+
+Nothing in the workflow checks this, because nothing needs to: every job runs on
+`macos-latest` or `ubuntu-latest`, and GitHub-hosted runners are well past that
+version. The floor only becomes real if a self-hosted runner is ever introduced
+— point a job at one below 2.327.1 and the action fails to start, with an error
+about the runtime rather than about anything in this repo. Check the runner
+version before moving a release job off GitHub-hosted.
+
+`Swatinem/rust-cache@v2` is already Node 24 and `dtolnay/rust-toolchain@stable`
+is a composite action with no JS runtime, so neither is pinned for this reason.
+
 ## Re-running a failed release
 
 A partially failed run can be re-run from the same tag and converges rather than

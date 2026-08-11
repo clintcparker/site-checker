@@ -90,7 +90,7 @@ jobs:
     needs: preflight
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -100,9 +100,9 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -136,7 +136,7 @@ jobs:
       VERSION: ${{ needs.preflight.outputs.version }}
       TARGET: ${{ matrix.arch }}-apple-darwin
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -147,9 +147,9 @@ jobs:
           workspaces: src-tauri
           key: ${{ matrix.arch }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -215,7 +215,7 @@ jobs:
           APP="src-tauri/target/${TARGET}/release/bundle/macos/Site Checker.app"
           ditto -c -k --sequesterRsrc --keepParent "$APP" "site-checker-${TARGET}.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: site-checker-${{ matrix.arch }}
           path: site-checker-${{ matrix.arch }}-apple-darwin.zip
@@ -228,14 +228,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
 
       # Updates an existing release for the tag in place rather than failing, so
       # a re-run of a partially failed release converges on one release object.
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           # The action defaults this to false, which would publish a release
@@ -261,7 +261,7 @@ jobs:
     env:
       VERSION: ${{ needs.preflight.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Download release assets
         env:
