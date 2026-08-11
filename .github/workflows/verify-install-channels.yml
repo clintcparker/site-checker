@@ -156,6 +156,15 @@ jobs:
           # catches Homebrew's extract-and-clean path quietly modifying the
           # bundle after release.yml signed it.
           codesign --verify --strict --verbose=2 "$APP" || {
+            # The bundle verified when it was signed in release.yml and again as
+            # a freshly unzipped archive, so a failure here means Homebrew's
+            # install path changed it. Print what it looks like now — otherwise
+            # diagnosing this costs a whole release cycle, which it already has
+            # once.
+            echo "--- bundle root ---";      ls -la@ "$APP"
+            echo "--- Contents ---";         ls -la@ "$APP/Contents"
+            echo "--- keg ---";              ls -la "$(brew --prefix site-checker)/libexec"
+            echo "--- detail ---";           codesign -dvvv "$APP" 2>&1 || true
             echo "::error::codesign could not verify the installed bundle"
             exit 1
           }
