@@ -22,11 +22,12 @@ Because the decision was reachable without launching the app, no `pnpm tauri dev
 
 Prediction held — the `after` run captured nothing and this file stands.
 
-The merge-base against `main` is `bd7a559`, which is also `HEAD`: the feature's work is still in the working tree, uncommitted. So the committed diff is empty trivially, and checking it alone would have proved nothing. The working tree was checked as well:
+An earlier `after` pass ran while the feature's work was still uncommitted: the merge-base against `main` (`bd7a559`) was also `HEAD`, so the committed diff was empty *trivially* and proved nothing on its own. That pass fell back to checking the working tree. The work is now committed (`HEAD` = `9eb0cc6`), so the committed diff is real and the check is finally meaningful. Re-run against it:
 
 - `git diff --name-only bd7a559..HEAD -- src index.html src-tauri/tauri.conf.json` → empty
-- `git status --porcelain -- src index.html src-tauri/tauri.conf.json` → empty
+- `git diff --name-only bd7a559..HEAD -- src src-tauri index.html` → empty (widened to *all* of `src-tauri/`, not just `tauri.conf.json`)
+- `git status --porcelain -- src src-tauri index.html` → empty (no uncommitted UI work either)
 
-Everything the branch changes is `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `.github/dependabot.yml`, `docs/how-to/release.md`, plus this feature's own `specs/` artifacts. No UI surface, so no `before/` baseline was needed and no `after/` images exist.
+The full committed diff is `.github/dependabot.yml`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `CHANGELOG.md`, `docs/how-to/release.md`, plus this feature's own `specs/` artifacts. No UI surface, so no `before/` baseline was needed and no `after/` images exist. The only untracked file is a QA record under `specs/`.
 
-As in the `before` pass, the app was never launched and `sites.json` was never seeded, backed up, or restored — the decision needed no running app.
+As in the `before` pass, the app was never launched and `sites.json` was never seeded, backed up, or restored — the decision needed no running app, so the user's real data file was never at risk.
