@@ -94,9 +94,15 @@ still conclude `success`.
 **Why this is the MVP**: It closes exactly the run the user pointed at. `release.yml` (US2) only
 emits its warnings on tag pushes, so it is invisible until a release and can ship separately.
 
-- [X] T003 [US1] Bump `actions/checkout@v4` → `@v5` on both lines 28 and 71 of `.github/workflows/ci.yml` (the `rust` and `frontend` jobs)
-- [X] T004 [US1] Bump `pnpm/action-setup@v4` → `@v6` on line 73 of `.github/workflows/ci.yml`
-- [X] T005 [US1] Bump `actions/setup-node@v4` → `@v6` on line 75 of `.github/workflows/ci.yml`, leaving the `node-version: 22` and `cache: pnpm` inputs exactly as they are — the explicit `cache` input is what makes the v5/v6 auto-caching change a no-op here
+> **Line numbers below shifted after T018.** These tasks were written against the pre-T018
+> `ci.yml`, where the pins sat at lines 28, 71, 73, and 75. T018 inserted the pinning-convention
+> comment block above them, so the current locations are **47, 90, 92, and 94**. Both sets are
+> given so a future reader diffing the task list against the file does not conclude a task hit
+> the wrong line. `release.yml`'s citations in US2 are unaffected and still exact.
+
+- [X] T003 [US1] Bump `actions/checkout@v4` → `@v5` on both lines 28 and 71 (now 47 and 90) of `.github/workflows/ci.yml` (the `rust` and `frontend` jobs)
+- [X] T004 [US1] Bump `pnpm/action-setup@v4` → `@v6` on line 73 (now 92) of `.github/workflows/ci.yml`
+- [X] T005 [US1] Bump `actions/setup-node@v4` → `@v6` on line 75 (now 94) of `.github/workflows/ci.yml`, leaving the `node-version: 22` and `cache: pnpm` inputs exactly as they are — the explicit `cache` input is what makes the v5/v6 auto-caching change a no-op here
 - [X] T006 [US1] Validate the edited `.github/workflows/ci.yml` parses as YAML (e.g. `python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml'))"`) and confirm no `@v4` pin remains except intentionally unchanged actions
 - [ ] T007 [US1] Push the branch and confirm via `gh api repos/clintcparker/site-checker/check-runs/<id>/annotations` that both `CI` jobs return `[]` and both conclude `success`
 
