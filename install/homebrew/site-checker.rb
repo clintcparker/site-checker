@@ -67,9 +67,19 @@ class SiteChecker < Formula
   def install
     staged = Pathname.pwd
     if staged.basename.to_s == "Site Checker.app"
-      # `children`, not Dir["*"] — it includes dotfiles, and silently dropping
-      # one out of a signed bundle would break the seal rather than the install.
-      (libexec/"Site Checker.app").install staged.children
+      # `Contents` by name, and *not* the staged directory's children. Homebrew
+      # sets buildpath to the staged directory — which, after the chdir above, is
+      # the bundle itself — and creates `.brew_home` inside it to use as HOME for
+      # the install (Formula#stage). Sweeping in every child therefore installs
+      # Homebrew's own scratch directory into the app, and `codesign --verify
+      # --strict` rejects it with "unsealed contents present in the bundle root".
+      # That is not a hypothetical: it is how the second throwaway release failed.
+      #
+      # Naming `Contents` is also simply the correct rule rather than a
+      # workaround. A macOS bundle's root *is* `Contents` by definition, and it is
+      # exactly what the signature seals — so anything else that appears beside it
+      # is by construction not ours to install.
+      (libexec/"Site Checker.app").install "Contents"
     else
       libexec.install "Site Checker.app"
     end
