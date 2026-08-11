@@ -36,25 +36,40 @@ updates:
     open-pull-requests-limit: 5
 
     # Majors this repo evaluated and declined. Each was read at its own
-    # action.yml before being skipped, and each is already on a node24 major —
-    # so ignoring these costs nothing in runtime currency, which is the only
-    # thing this file exists to track. Ignoring the major *line* rather than a
-    # version, so a later v8/v9 does not reopen a settled question. Revisiting
-    # one means deleting its entry deliberately, not re-litigating a PR.
+    # action.yml before being skipped, and each is already on a node24 major, so
+    # skipping it costs nothing in runtime currency today.
+    #
+    # Each entry names the declined major *by version*, deliberately, and not
+    # `update-types: ["version-update:semver-major"]`. These actions are
+    # referenced by a bare major tag (`@v5`, `@v6`, `@v7`), and a major bump is
+    # the only version update Dependabot can propose for a reference of that
+    # shape — a "Bump actions/checkout from 5 to 6" PR and nothing else. So
+    # ignoring the major *line* would not narrow these actions, it would silence
+    # them permanently, and the next runtime deprecation would ride in on a
+    # major this file had pre-emptively agreed never to mention. That is the
+    # exact annotation-nobody-reads failure this file exists to prevent.
+    #
+    # Consequence of the narrow form: when the major above a declined one ships
+    # (checkout v8, download-artifact v9, …), Dependabot proposes it and the
+    # decision gets made again on current information. That is intended. Adding
+    # a new version to a list here is the deliberate act; inheriting a blanket
+    # skip is not.
     ignore:
       # v8 defaults digest-mismatch to `error`, turning what is a logged
-      # warning today into a failed release run.
+      # warning today into a failed release run, and it skips decompression.
+      # v7 is the pin.
       - dependency-name: "actions/download-artifact"
-        update-types: ["version-update:semver-major"]
+        versions: ["8.x"]
       # v7 changes upload behavior; v6 is the first default-node24 major and
       # is all this repo needs.
       - dependency-name: "actions/upload-artifact"
-        update-types: ["version-update:semver-major"]
+        versions: ["7.x"]
       # v6 changes credential persistence and v7 adds a fork-PR checkout block.
-      # v5 is already node24.
+      # v5 is already node24 and is the pin.
       - dependency-name: "actions/checkout"
-        update-types: ["version-update:semver-major"]
-      # v6 is already node24 and its npm-only caching narrowing is a no-op
-      # here. v7 is newer than anything this repo has a reason to absorb.
+        versions: ["6.x", "7.x"]
+      # v6 is already node24, is the pin, and its npm-only caching narrowing is
+      # a no-op here. v7 is newer than anything this repo has a reason to
+      # absorb.
       - dependency-name: "actions/setup-node"
-        update-types: ["version-update:semver-major"]
+        versions: ["7.x"]

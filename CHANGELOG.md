@@ -32,19 +32,32 @@ left alone.
   the same kind of reason.
 - **`.github/dependabot.yml` is new**, scoped to `github-actions` at `/` on a
   weekly schedule, so the next runtime deprecation arrives as a PR rather than as
-  an annotation on a passing run. Cargo and npm are deliberately excluded — both
-  already fail loudly, since `cargo test --locked` and
-  `pnpm install --frozen-lockfile` hard-error on lockfile drift.
+  an annotation on a passing run. Its `ignore:` entries name the four declined
+  majors *by version* (`checkout` v6/v7, `setup-node` v7, `upload-artifact` v7,
+  `download-artifact` v8) rather than by `semver-major` update type: these actions
+  are referenced by a bare major tag, so a major bump is the only update
+  Dependabot can propose for them, and ignoring the major line would have
+  silenced them permanently — reinstating the exact failure this file exists to
+  prevent. Cargo and npm are deliberately excluded, and **not** because CI catches
+  their drift: `cargo test --locked` and `pnpm install --frozen-lockfile` fail
+  when a lockfile disagrees with its own manifest, and notice neither an upstream
+  release nor a security advisory. The exclusion is a PR-volume choice for a
+  single-user desktop app; turning on security-only updates for those two
+  ecosystems is a separate decision, recorded rather than made here.
 - **The pins imply an Actions runner floor of ≥ 2.327.1**, now noted in
   `docs/how-to/release.md` so a future self-hosted runner is not introduced
   unknowingly. The repository has no self-hosted runners today
   (`actions/runners` → `total_count: 0`) and every job runs on
   `macos-latest`/`ubuntu-latest`.
 
-Verified by inspection against `action.yml` at each target tag and each rejected
-tag, plus the release notes for every major crossed — not against a live runner.
-The `release.yml` artifact round-trip in particular has not been exercised end to
-end; the first tag push after this merges is its real test.
+`ci.yml` was verified on a live runner: its pull-request runs conclude `success`
+on both `rust` and `frontend` with an empty annotation list on each, which is the
+evidence — a Node 20 deprecation annotation appears on a run that *passes*, so
+the green check alone proves nothing. `release.yml` was verified by inspection
+only, against `action.yml` at each target tag and each rejected tag plus the
+release notes for every major crossed. Its artifact round-trip through
+`upload-artifact@v6` → `download-artifact@v7` → `action-gh-release@v3` has not
+been exercised end to end; the first tag push after this merges is its real test.
 
 ## Site Checker 1.0.0 — 2026-08-11
 
