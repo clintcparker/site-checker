@@ -6,7 +6,7 @@ interface FormHooks {
   lookup: (id: string) => Site | undefined;
 }
 
-const MIN_INTERVAL = 10;
+export const MIN_INTERVAL = 10;
 const DEFAULT_INTERVAL = 60;
 /**
  * A product guardrail, not a protocol limit: the backend enforces only the
@@ -14,10 +14,14 @@ const DEFAULT_INTERVAL = 60;
  * where this app is telling you anything useful. It exists to keep a pasted
  * 21-digit number from reaching a `u64` at the IPC boundary.
  *
- * Repeated in three places that must stay in sync — here, `index.html`'s
- * `max` attribute, and the ceiling case in `form.test.ts`.
+ * The value is spelled out in more than one place — here, `index.html`'s `max`
+ * attribute, and the `#site-interval` markup inside each test file's fixture DOM.
+ * That is not ideal, but it is now *pinned*: `interval-bounds.test.ts` scans
+ * `index.html` and every `*.test.ts` in this directory and fails if any copy
+ * disagrees with these two constants. Add another copy anywhere and the guard
+ * finds it without being told.
  */
-const MAX_INTERVAL = 86400;
+export const MAX_INTERVAL = 86400;
 
 export function mountForm(hooks: FormHooks): void {
   const form = document.querySelector<HTMLFormElement>("#site-form")!;

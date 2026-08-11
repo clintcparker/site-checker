@@ -173,3 +173,30 @@ describe("upsertSite drops a stale status only when the URL changes", () => {
     expect(main.currentRows().some((row) => row.site.id === "d")).toBe(true);
   });
 });
+
+describe("removeSite", () => {
+  it("drops the row and repaints the table", () => {
+    main.upsertSite(site("gone"));
+    expect(document.querySelector('#rows tr[data-id="gone"]')).not.toBeNull();
+
+    main.removeSite("gone");
+
+    expect(main.currentRows().some((row) => row.site.id === "gone")).toBe(false);
+    expect(document.querySelector('#rows tr[data-id="gone"]')).toBeNull();
+  });
+
+  it("forgets the status too, so a re-added id does not inherit the old dot", () => {
+    main.upsertSite(site("recycled"));
+    emitStatus(status("recycled", { state: "down", reason: "HTTP 500" }));
+    expect(main.currentRows().find((r) => r.site.id === "recycled")?.status?.state).toBe("down");
+
+    main.removeSite("recycled");
+    main.upsertSite(site("recycled"));
+
+    // This is the assertion with teeth. Deleting from `sites` alone passes the
+    // test above and fails here: the orphaned status would still be sitting in
+    // `statuses`, and re-adding the id would reattach it — showing a confirmed
+    // Down for a site that has never been checked.
+    expect(main.currentRows().find((r) => r.site.id === "recycled")?.status).toBeNull();
+  });
+});

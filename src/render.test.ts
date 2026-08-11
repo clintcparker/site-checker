@@ -191,6 +191,54 @@ describe("renderTable reconciliation", () => {
     expect(rows[1]).toBe(trC);
   });
 
+  // The two tests below are the ends of the range. The seven above cover the
+  // middle — identity, in-place cell updates, transitions, append, single
+  // removal, reorder — and each of these is a case where a diffing loop can be
+  // subtly wrong in a way none of the middle cases reach.
+
+  it("clears a populated tbody when the last site is deleted", () => {
+    const tbody = makeTbody();
+    renderTable(
+      tbody,
+      [
+        { site: site("a"), status: null },
+        { site: site("b"), status: null },
+      ],
+      NOW,
+    );
+    expect(trs(tbody)).toHaveLength(2);
+
+    renderTable(tbody, [], NOW);
+
+    // Deleting the last site is the one case where the desired end state is
+    // "nothing" — a loop that only ever walks the incoming rows has nothing to
+    // walk and leaves the old rows on screen.
+    expect(trs(tbody)).toHaveLength(0);
+    expect(tbody.children).toHaveLength(0);
+  });
+
+  it("inserts a new row at the front rather than appending it", () => {
+    const tbody = makeTbody();
+    renderTable(tbody, [{ site: site("b"), status: null }], NOW);
+    const trB = trs(tbody)[0];
+
+    renderTable(
+      tbody,
+      [
+        { site: site("a"), status: null },
+        { site: site("b"), status: null },
+      ],
+      NOW,
+    );
+
+    // The append test proves a new row can arrive last. This proves position is
+    // actually honoured: a diff that appends unconditionally passes that one and
+    // fails this one.
+    const rows = trs(tbody);
+    expect(rows.map((tr) => tr.dataset.id)).toEqual(["a", "b"]);
+    expect(rows[1]).toBe(trB);
+  });
+
   it("reorders existing rows to match the new row order, moving rather than recreating", () => {
     const tbody = makeTbody();
     renderTable(
