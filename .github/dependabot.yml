@@ -1,0 +1,75 @@
+version: 2
+
+# Only the github-actions ecosystem, deliberately. A JS action pinned to a
+# stale major keeps working right up until GitHub retires the Node runtime
+# under it, and the only warning is a deprecation annotation on a run that
+# still passes — which is exactly how the Node 20 warning sat unnoticed until
+# a human happened to read the log. A weekly PR turns that silent decay into
+# something with a review surface.
+#
+# Not covered here: cargo and npm. Not because CI would catch their drift — it
+# would not. `cargo test --locked` and `pnpm install --frozen-lockfile` fail
+# when a lockfile disagrees with its own manifest; neither notices that an
+# upstream crate or package has published a newer version, and neither reports
+# a security advisory. They are excluded because this is a single-user desktop
+# app where routine dependency churn is not worth the PR volume, and the pinned
+# set staying reproducible is the property that actually matters. Turning on
+# security-only updates for those two ecosystems is a separate decision, worth
+# making explicitly rather than inheriting from this file.
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+
+    # One PR per week for everything, rather than one per action. Ungrouped,
+    # eight actions compete for Dependabot's default open-pull-requests-limit
+    # of 5, which stops opening PRs silently once hit — the same "a signal
+    # nobody sees" failure this file exists to fix. The limit is set explicitly
+    # below so the number is a choice rather than a default.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5
+
+    # Majors this repo evaluated and declined. Each was read at its own
+    # action.yml before being skipped, and each is already on a node24 major, so
+    # skipping it costs nothing in runtime currency today.
+    #
+    # Each entry names the declined major *by version*, deliberately, and not
+    # `update-types: ["version-update:semver-major"]`. These actions are
+    # referenced by a bare major tag (`@v5`, `@v6`, `@v7`), and a major bump is
+    # the only version update Dependabot can propose for a reference of that
+    # shape — a "Bump actions/checkout from 5 to 6" PR and nothing else. So
+    # ignoring the major *line* would not narrow these actions, it would silence
+    # them permanently, and the next runtime deprecation would ride in on a
+    # major this file had pre-emptively agreed never to mention. That is the
+    # exact annotation-nobody-reads failure this file exists to prevent.
+    #
+    # Consequence of the narrow form: when the major above a declined one ships
+    # (checkout v8, download-artifact v9, …), Dependabot proposes it and the
+    # decision gets made again on current information. That is intended. Adding
+    # a new version to a list here is the deliberate act; inheriting a blanket
+    # skip is not.
+    ignore:
+      # v8 defaults digest-mismatch to `error`, turning what is a logged
+      # warning today into a failed release run, and it skips decompression.
+      # v7 is the pin.
+      - dependency-name: "actions/download-artifact"
+        versions: ["8.x"]
+      # v7 changes upload behavior; v6 is the first default-node24 major and
+      # is all this repo needs.
+      - dependency-name: "actions/upload-artifact"
+        versions: ["7.x"]
+      # v6 changes credential persistence and v7 adds a fork-PR checkout block.
+      # v5 is already node24 and is the pin.
+      - dependency-name: "actions/checkout"
+        versions: ["6.x", "7.x"]
+      # v6 is already node24, is the pin, and its npm-only caching narrowing is
+      # a no-op here. v7 is newer than anything this repo has a reason to
+      # absorb.
+      - dependency-name: "actions/setup-node"
+        versions: ["7.x"]
