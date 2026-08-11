@@ -13,8 +13,12 @@ on:
     tags:
       - 'v*'
 
+# Read at file scope, write only where a job actually publishes. actions/checkout
+# persists GITHUB_TOKEN into .git/config by default, and `test` and `build` run
+# third-party build tooling — so a file-scope write token is handed to exactly
+# the jobs with the least business holding one.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   preflight:
@@ -211,6 +215,9 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    # The one job that publishes, and so the one job that needs write.
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -233,6 +240,10 @@ jobs:
   homebrew:
     needs: [preflight, release]
     runs-on: ubuntu-latest
+    # Read is enough: `gh release download` reads this public repository, and the
+    # tap push authenticates with TAP_PUSH_TOKEN rather than GITHUB_TOKEN.
+    permissions:
+      contents: read
     env:
       VERSION: ${{ needs.preflight.outputs.version }}
     steps:
