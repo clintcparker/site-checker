@@ -2,6 +2,50 @@
 
 All notable changes to Site Checker are recorded here.
 
+## CI and release actions move to the Node 24 runtime — 2026-08-11
+
+Nothing user-visible; nothing in `src/`, `index.html`, or `src-tauri/` was touched.
+Every JS action in `ci.yml` and `release.yml` was pinned to a major whose
+`runs.using` is `node20`, so both workflows emitted a Node 20 deprecation
+annotation on every otherwise-green run — the failure mode where nothing breaks
+and nobody looks. Fourteen `uses:` lines across six distinct actions now sit on
+`node24`: `checkout` v4 → v5, `setup-node` v4 → v6, `pnpm/action-setup` v4 → v6,
+`upload-artifact` v4 → v6, `download-artifact` v4 → v7, and
+`softprops/action-gh-release` v2 → v3. `Swatinem/rust-cache@v2` is already
+`node24` and `dtolnay/rust-toolchain@stable` is a composite action; both were
+left alone.
+
+- **The rule is the lowest major that runs on `node24`, with two named
+  exceptions.** `setup-node@v5` and `pnpm/action-setup@v5` are already `node24`,
+  and both are pinned a major higher anyway: `setup-node@v6` narrows automatic
+  caching to npm only, and all three call sites pass `cache: pnpm` explicitly, so
+  the narrowing is never consulted; `action-setup@v6` only adds pnpm 11 and still
+  self-updates to the `packageManager` version `package.json` pins. A first draft
+  of the `ci.yml` comment block stated the rule without the exceptions, which made
+  it false about two of its own pins — QA failed it, and it was rewritten before
+  this shipped.
+- **`download-artifact` stops at v7 deliberately.** v8 defaults
+  `digest-mismatch` to `error`, turning a logged warning into a failed release
+  run, and skips decompression. v7 still unzips and still defaults
+  `merge-multiple: false`, so the `release` job's `artifacts/site-checker-<arch>/…`
+  globs resolve unchanged. `upload-artifact` stops at v6 and `checkout` at v5 for
+  the same kind of reason.
+- **`.github/dependabot.yml` is new**, scoped to `github-actions` at `/` on a
+  weekly schedule, so the next runtime deprecation arrives as a PR rather than as
+  an annotation on a passing run. Cargo and npm are deliberately excluded — both
+  already fail loudly, since `cargo test --locked` and
+  `pnpm install --frozen-lockfile` hard-error on lockfile drift.
+- **The pins imply an Actions runner floor of ≥ 2.327.1**, now noted in
+  `docs/how-to/release.md` so a future self-hosted runner is not introduced
+  unknowingly. The repository has no self-hosted runners today
+  (`actions/runners` → `total_count: 0`) and every job runs on
+  `macos-latest`/`ubuntu-latest`.
+
+Verified by inspection against `action.yml` at each target tag and each rejected
+tag, plus the release notes for every major crossed — not against a live runner.
+The `release.yml` artifact round-trip in particular has not been exercised end to
+end; the first tag push after this merges is its real test.
+
 ## Site Checker 1.0.0 — 2026-08-11
 
 **`brew install clintcparker/tap/site-checker` works.** This supersedes the entry
