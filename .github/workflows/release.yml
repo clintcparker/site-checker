@@ -90,7 +90,7 @@ jobs:
     needs: preflight
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -102,7 +102,7 @@ jobs:
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -136,7 +136,7 @@ jobs:
       VERSION: ${{ needs.preflight.outputs.version }}
       TARGET: ${{ matrix.arch }}-apple-darwin
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -149,7 +149,7 @@ jobs:
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -215,7 +215,7 @@ jobs:
           APP="src-tauri/target/${TARGET}/release/bundle/macos/Site Checker.app"
           ditto -c -k --sequesterRsrc --keepParent "$APP" "site-checker-${TARGET}.zip"
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: site-checker-${{ matrix.arch }}
           path: site-checker-${{ matrix.arch }}-apple-darwin.zip
@@ -228,7 +228,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -261,7 +261,7 @@ jobs:
     env:
       VERSION: ${{ needs.preflight.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Download release assets
         env:
