@@ -22,12 +22,14 @@ Because the decision was reachable without launching the app, no `pnpm tauri dev
 
 Prediction held — the `after` run captured nothing and this file stands.
 
-An earlier `after` pass ran while the feature's work was still uncommitted: the merge-base against `main` (`bd7a559`) was also `HEAD`, so the committed diff was empty *trivially* and proved nothing on its own. That pass fell back to checking the working tree. The work is now committed (`HEAD` = `9eb0cc6`), so the committed diff is real and the check is finally meaningful. Re-run against it:
+The first `after` pass ran while the feature's work was still uncommitted: the merge-base against `main` (`bd7a559`) was also `HEAD`, so the committed diff was empty *trivially* and proved nothing on its own. That pass fell back to checking the working tree. Later passes ran against real commits. This re-verification is at `HEAD` = `418a9e9`, which includes the review fixes that landed after the earlier passes (`9eb0cc6` and its successors), so the committed diff is meaningful:
 
 - `git diff --name-only bd7a559..HEAD -- src index.html src-tauri/tauri.conf.json` → empty
 - `git diff --name-only bd7a559..HEAD -- src src-tauri index.html` → empty (widened to *all* of `src-tauri/`, not just `tauri.conf.json`)
 - `git status --porcelain -- src src-tauri index.html` → empty (no uncommitted UI work either)
 
 The full committed diff is `.github/dependabot.yml`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `CHANGELOG.md`, `docs/how-to/release.md`, plus this feature's own `specs/` artifacts. No UI surface, so no `before/` baseline was needed and no `after/` images exist. The only untracked file is a QA record under `specs/`.
+
+No `manifest.json` exists to reuse: the `before` pass skipped rather than capturing, so it never wrote one. Nothing about the app's state needed to be reproduced.
 
 As in the `before` pass, the app was never launched and `sites.json` was never seeded, backed up, or restored — the decision needed no running app, so the user's real data file was never at risk.
