@@ -30,19 +30,25 @@
 class SiteChecker < Formula
   desc "Small macOS dashboard that checks whether your sites are up"
   homepage "https://github.com/clintcparker/site-checker"
-  license "0BSD"
   version "VERSION"
+  license "0BSD"
 
   depends_on :macos
 
-  on_arm do
-    url "https://github.com/clintcparker/site-checker/releases/download/v#{version}/site-checker-aarch64-apple-darwin.zip"
-    sha256 "SHA256_ARM64"
-  end
-
-  on_intel do
-    url "https://github.com/clintcparker/site-checker/releases/download/v#{version}/site-checker-x86_64-apple-darwin.zip"
-    sha256 "SHA256_X86_64"
+  # `on_macos do ... Hardware::CPU.arm? ... end`, matching Formula/name-on.rb in
+  # the same tap, and not the tidier-looking `on_arm`/`on_intel` blocks.
+  # `brew audit` rejects those outright — "on_arm cannot include url" — because
+  # only a fixed list of methods is permitted inside them, and url/sha256 are not
+  # on it. The unsupported form did install correctly when the first throwaway
+  # release was validated, which is exactly why it is worth not relying on.
+  on_macos do
+    if Hardware::CPU.arm?
+      url "https://github.com/clintcparker/site-checker/releases/download/v#{version}/site-checker-aarch64-apple-darwin.zip"
+      sha256 "SHA256_ARM64"
+    else
+      url "https://github.com/clintcparker/site-checker/releases/download/v#{version}/site-checker-x86_64-apple-darwin.zip"
+      sha256 "SHA256_X86_64"
+    end
   end
 
   # libexec rather than the keg root, and the choice is load-bearing. Cleaner
