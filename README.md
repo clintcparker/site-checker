@@ -18,22 +18,57 @@ person.
 brew install clintcparker/tap/site-checker
 ```
 
-That is the whole thing — no toolchain, no clone, no build.
+No toolchain, no clone, no build. Then:
+
+```sh
+site-checker
+```
+
+Use the fully-qualified name — recent Homebrew refuses a bare `brew install
+site-checker` from a third-party tap unless you name the tap in the command.
+
+### Getting it into /Applications
+
+Site Checker installs as a Homebrew **formula**, not a cask, so the bundle lives
+in the Homebrew prefix rather than `/Applications`. That is deliberate: casks
+attach a quarantine flag that macOS refuses to open for an app without a paid
+Apple Developer signature, and there is no longer any way for a cask to opt out.
+A formula is not quarantined, so the app just opens.
+
+The `site-checker` command works immediately. For a Finder and Dock icon,
+symlink it once — the link points at Homebrew's `opt` path, so it survives
+upgrades:
+
+```sh
+ln -s "$(brew --prefix site-checker)/libexec/Site Checker.app" /Applications/
+```
+
+Spotlight and Launchpad do not index apps through a symlink, so launch it with
+the `site-checker` command or from Finder.
+
+What you give up versus a signed build: nothing verifies that the bytes you
+downloaded are the bytes that were built. See
+[docs/how-to/release.md](docs/how-to/release.md).
 
 ### Uninstall
 
 ```sh
-brew uninstall site-checker          # app gone, your site list kept
-brew uninstall --zap site-checker    # app gone, your site list trashed too
+brew uninstall site-checker
+rm "/Applications/Site Checker.app"   # only if you made the symlink above
 ```
 
-The site list is only ever removed by `--zap`, and it goes to the Trash rather
-than being deleted outright.
+**Your site list is never touched by Homebrew** — a formula has no equivalent of
+a cask's `--zap`, so uninstalling and reinstalling always brings your sites back.
+To remove the list yourself:
+
+```sh
+rm -rf ~/Library/"Application Support"/com.clintparker.site-checker
+```
 
 If you previously built Site Checker yourself, the installed copy reads the same
-`sites.json`, so your list comes across untouched. Homebrew installs to
-`/Applications`; if a hand-built `Site Checker.app` is already sitting there,
-Homebrew refuses rather than overwriting it — move it aside first.
+`sites.json`, so your list comes across untouched. A hand-built copy in
+`/Applications` and the Homebrew copy can coexist — they share the same site
+list, so run one at a time.
 
 ## Build it yourself
 
@@ -56,9 +91,12 @@ pnpm tauri dev
 ## Test
 
 ```bash
-pnpm test                  # frontend: the relative-time formatter
-cd src-tauri && cargo test  # backend: model, store, and HTTP classifier
+pnpm test                   # frontend: time formatter, table rendering, form, startup wiring
+cd src-tauri && cargo test  # backend: model, store, lock discipline, and HTTP classifier
 ```
+
+`pnpm build` is a gate too, not just a build — it runs `tsc` over the test files
+as well, so a type error there fails the build even when `pnpm test` is green.
 
 ## Build
 

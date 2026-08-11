@@ -2,6 +2,97 @@
 
 All notable changes to Site Checker are recorded here.
 
+## The install channel becomes a formula, not a cask — 2026-08-11
+
+The second of the two maintainer decisions the packaging entry left open is
+answered: **no Apple Developer Program membership.** What made that interesting
+is that the fallback the spec had written down for exactly this answer turned out
+not to exist any more.
+
+That fallback was `quarantine: false` in the cask. Checked against Homebrew
+6.0.15: `Cask::Installer#initialize` has no `quarantine:` keyword argument, there
+is no `quarantine` stanza in the cask DSL, and `no-quarantine` appears nowhere in
+Homebrew's source — upstream landed *"Prepare for deprecation of
+`--no-quarantine`"* and then *"Remove leftover code for `--no-quarantine`"*.
+**Casks now quarantine unconditionally**, with no author-side stanza and no
+user-side flag, and a quarantined bundle carrying only an ad-hoc signature opens
+as "damaged". So the real choice was not "pay or apply the fallback" but "pay or
+change channel".
+
+**Site Checker now ships as a Homebrew formula.** Formulae never set
+`com.apple.quarantine` — every `Quarantine.` call site in Homebrew lives under
+its `cask/` directory — so the app simply opens. `brew install
+clintcparker/tap/site-checker` is unchanged, because Homebrew resolves a
+tap-qualified name against both `Formula/` and `Casks/`.
+
+Three things are genuinely lost, and none is recoverable without paying:
+
+- **Provenance.** An ad-hoc signature proves the bundle is unmodified since
+  signing and nothing about who signed it. `spctl -a -t exec` cannot pass, so
+  FR-021 now asserts the bundle is *unquarantined* and that `codesign --verify
+  --strict` passes — a real check of a strictly weaker property.
+- **`/Applications`.** A formula cannot write there; Homebrew's sandboxes deny
+  every write outside the Cellar and `brew linkapps` is gone. The bundle lives in
+  `libexec` — chosen over the keg root because `Cleaner` prunes at `libexec`, so
+  nothing inside it is chmodded and the signature stays sealed — reached by a
+  `site-checker` command on `PATH` or a one-time symlink.
+- **Spotlight and Launchpad**, neither of which indexes an app through a symlink.
+
+**`brew uninstall --zap` is gone too**, and silently: `zap` is a cask stanza, and
+`--zap` on a formula exits 0 having done nothing. FR-004 is now satisfied by
+construction — Homebrew never touches the site list — while FR-003 has no
+mechanism at all and degrades to a documented `rm -rf`.
+
+Nine review findings recorded during the packaging feature and never actioned
+were folded in on the way through: checksum drift invisible to daily verification
+(R001), the tap read through a CDN-cached URL that can fail a good release
+(R002), no `workflow_run` conclusion filter so a macOS runner fired after every
+*failed* release (R003), a file-scope write token reaching the jobs that run
+third-party build tooling (R005), no syntax gate before publishing to a public
+tap (R006), `fail_on_unmatched_files` (R007), a hardcoded repository name (R008),
+no `concurrency:` group (R010), and the annotated-tag requirement nothing checked
+(R011). R004 and R009 are moot under this design.
+
+**Still not live.** No `v1.0.0` exists and `TAP_PUSH_TOKEN` is not set, so
+`brew install` does not work yet. What changed is that the remaining work is one
+credential and one tag, with no purchase and no enrolment wait in front of it.
+
+Spec: [`specs/20260806-190127-packaging-and-distribution/spec.md`](specs/20260806-190127-packaging-and-distribution/spec.md) ·
+Decision record: [`research.md` R2](specs/20260806-190127-packaging-and-distribution/research.md) ·
+Reconciliation: [`tasks.md`](specs/20260806-190127-packaging-and-distribution/tasks.md)
+
+## Correctness and coverage from two rounds of unactioned review findings — 2026-08-11
+
+Nothing user-visible. Three findings carried open across both concurrency-hardening
+reviews, plus the coverage gaps the roadmap had been listing as
+correct-but-unpinned. Rust tests 55 → 62, frontend 30 → 47.
+
+- **`load` now holds the id-uniqueness invariant.** `AddError::DuplicateId` was
+  enforced only on the append path, so a hand-edited, restored, or imported
+  `sites.json` with two entries sharing an id loaded cleanly — after which
+  `get`/`replace`/`update` acted on the first match while `delete` removed both.
+  The first entry per id now wins, reported through the same banner channel the
+  corrupt-file case uses, and the file is left alone so the dropped entry stays
+  recoverable.
+- **The lock-discipline guard covers what it claims.** It read a hand-maintained
+  `include_str!` list, so a new module fell outside it silently, and matched one
+  literal spelling, so three other ways of taking an unrecovered lock passed. It
+  now walks `src/` at run time and matches a set. Widening it immediately failed
+  on doc comments that spelled the needles out; those were reworded rather than
+  exempted, per the rule the guard's own comment already sets.
+- **`SharedStore::lock` names its deliberate exception**, so the two `commands.rs`
+  comments warning against emitting under the store guard no longer read as
+  contradicted by the function they call.
+- **The interval ceiling is pinned across all four copies.** `86400` lived in
+  `form.ts`, `index.html`, and both test fixtures, and only the first was covered
+  — so a stale `max` attribute changed the product's behaviour with every test
+  still green. A new guard globs `index.html` and every `*.test.ts` and fails on
+  disagreement, covering files that do not exist yet.
+- Plus the paths roadmap §3 listed: `check.rs`'s redirect limit, transport-level
+  GET-retry failure, and 405-to-both-methods; `store.rs`'s `update` no-op;
+  `render.ts`'s clear-to-empty and front-insertion; `main.ts`'s `removeSite` and
+  startup banner; `form.ts`'s `enterEditMode` and cancel.
+
 ## Repository made public — 2026-08-06
 
 The repository is now public, which retires the first of the two maintainer

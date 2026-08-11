@@ -119,6 +119,59 @@ default.
 
 ---
 
+### Decision confirmed — 2026-08-11: **no membership.** And the fallback above does not exist.
+
+**The answer to R2 is no.** FR-006 is met by taking quarantine out of the equation rather than by
+satisfying Gatekeeper.
+
+**The documented fallback is not implementable, and that is new information this document did not
+contain.** It proposed `quarantine: false` in the cask. Verified against the Homebrew 6.0.15
+installed on the maintainer's machine:
+
+- `Cask::Installer#initialize` has no `quarantine:` keyword argument.
+- There is no `quarantine` stanza in the cask DSL — `Library/Homebrew/cask/dsl/` has zero hits.
+- `grep -rn "no-quarantine" Library/Homebrew/` returns **nothing**. Upstream landed
+  *"Prepare for deprecation of `--no-quarantine`"* and then *"Remove leftover code for
+  `--no-quarantine`"*.
+
+**Casks now quarantine unconditionally**, with no author-side stanza and no user-side flag. There
+is no cask configuration under which an ad-hoc-signed bundle opens. The choice was therefore not
+"pay or apply the fallback" but "pay or change channel".
+
+**Chosen: ship a Homebrew formula instead of a cask.** The asymmetry this rests on was already
+stated in the section above and in `docs/how-to/release.md` — *formulae do not quarantine what
+they install; casks do* — it simply had not been read as an escape route. Verified: every
+`Quarantine.` call site in Homebrew lives under `cask/`; `Cask::Download#fetch` is what attaches
+the attribute, and `Resource#fetch` has no analogue. `cli/named_args.rb` prioritises a formula
+over a non-core-tap cask for a tap-qualified name, so `brew install
+clintcparker/tap/site-checker` is byte-identical for the user.
+
+**What it costs.** Three things, all recorded in `docs/ROADMAP.md` rather than absorbed silently:
+
+1. **Provenance.** Ad-hoc signing proves the bundle is unmodified since signing; it proves nothing
+   about who signed it. FR-021's `spctl -a -t exec` is amended to `codesign --verify --strict`,
+   which is a real check of a strictly weaker property. The e2e job additionally asserts
+   `com.apple.quarantine` is *absent*, which turns this whole decision's premise into something
+   machine-checked rather than assumed.
+2. **`/Applications`.** A formula cannot write there: `formula_installer.rb`'s build and
+   post-install sandboxes allow writes only to the Cellar, `etc`, `var`, temp/cache and logs, and
+   `brew linkapps` was removed. The bundle goes in `libexec` — chosen over the keg root because
+   `Cleaner` calls `Find.prune` there, so nothing inside the bundle is chmodded or pruned and the
+   signature stays sealed — reached by a `bin/site-checker` wrapper and an optional user symlink.
+3. **Spotlight and Launchpad**, neither of which indexes an app through a symlink. Finder
+   double-click through the symlink does work.
+
+**And `zap` is gone.** It is a cask stanza with no formula equivalent, and `brew uninstall --zap`
+on a formula exits 0 having done nothing (`cmd/uninstall.rb` iterates casks only). FR-004 is now
+satisfied by construction — Homebrew never touches the data directory — while FR-003 has no
+mechanism at all and degrades to documentation. Review finding R009 is moot.
+
+**The way back, if the membership is ever bought:** restore the certificate and notarization steps
+in `release.yml`, swap the template back to a cask, and restore `spctl -a -t exec`. Nothing else
+in the feature depends on the choice.
+
+---
+
 ## R3. Artifact format — a `.zip` produced by `ditto`, not `.tar.gz` and not `.dmg`
 
 **Decision.** Each architecture publishes `site-checker-<arch>-apple-darwin.zip`, created with

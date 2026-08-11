@@ -13,8 +13,21 @@ on:
     tags:
       - 'v*'
 
+# Read at file scope, write only where a job actually publishes. actions/checkout
+# persists GITHUB_TOKEN into .git/config by default, and `test` and `build` run
+# third-party build tooling — so a file-scope write token is handed to exactly
+# the jobs with the least business holding one.
 permissions:
-  contents: write
+  contents: read
+
+# Two tags pushed close together would otherwise produce two `homebrew` jobs
+# racing the same tap clone-and-push, and the loser fails on a non-fast-forward.
+# Keyed on the ref rather than a constant so distinct tags still run in
+# parallel; cancel-in-progress is off because a half-finished release is worse
+# than a slow one.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   preflight:
@@ -34,26 +47,34 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Releasing site-checker $VERSION (tag $GITHUB_REF_NAME)"
 
-      # Presence, never validity. An expired certificate, a revoked API key, or a
-      # mis-scoped token passes here and fails later — at signing, at notarytool
-      # submit, or at the tap push. docs/how-to/release.md states that limit.
-      # Every gap is accumulated so a first-time setup is told all of them in one
-      # run rather than one per attempt. No secret's value is ever echoed.
+      # FR-007 and docs/how-to/release.md both require an *annotated* tag, and
+      # until now nothing checked: a lightweight tag released identically. The
+      # API answers this without a checkout — an annotated tag's ref points at a
+      # `tag` object, a lightweight one points straight at the `commit`.
+      - name: The tag is annotated
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          kind=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" --jq '.object.type')
+          if [ "$kind" != "tag" ]; then
+            echo "::error::$GITHUB_REF_NAME is a lightweight tag; releases are cut from annotated tags — re-tag with 'git tag -a' (see docs/how-to/release.md)"
+            exit 1
+          fi
+          echo "OK   $GITHUB_REF_NAME is annotated"
+
+      # Presence, never validity. A revoked or mis-scoped token passes here and
+      # fails later, at the tap push. docs/how-to/release.md states that limit.
+      # The accumulate-every-gap shape is kept even though one secret is left:
+      # it is what makes a first-time setup a single run rather than one attempt
+      # per missing piece, and the list grew before. No value is ever echoed.
       - name: Check one-time setup
         shell: bash
         env:
           TAP_PUSH_TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
         run: |
           missing=0
-          for name in TAP_PUSH_TOKEN \
-                      APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
-                      APPLE_API_ISSUER APPLE_API_KEY_ID APPLE_API_KEY; do
+          for name in TAP_PUSH_TOKEN; do
             if [ -z "${!name}" ]; then
               echo "::error::one-time setup missing: $name (see docs/how-to/release.md)"
               missing=1
@@ -145,33 +166,6 @@ jobs:
             exit 1
           }
 
-      - name: Import signing certificate
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-        run: |
-          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
-          KEYCHAIN_PASSWORD="$(uuidgen)"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
-          security import "$RUNNER_TEMP/certificate.p12" \
-            -k "$KEYCHAIN_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign -T /usr/bin/security
-          security set-key-partition-list -S apple-tool:,apple:,codesign: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
-          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain
-          rm -f "$RUNNER_TEMP/certificate.p12"
-
-      - name: Write App Store Connect API key
-        env:
-          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/private_keys"
-          printf '%s' "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/private_keys/AuthKey.p8"
-          chmod 600 "$RUNNER_TEMP/private_keys/AuthKey.p8"
-
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
@@ -180,26 +174,45 @@ jobs:
       # interactive session. tauri.conf.json's default targets are reduced to
       # ["app"] as well, so a forgotten flag cannot reintroduce the hang.
       #
-      # With these variables present Tauri signs with the hardened runtime,
-      # submits to notarytool, waits, and staples — no separate invocation.
-      # Note the deliberate name shift: Tauri's APPLE_API_KEY is the *Key ID*,
-      # while the repository secret of that name holds the base64 .p8 (written
-      # to APPLE_API_KEY_PATH above).
-      - name: Build, sign, notarize and staple
-        env:
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey.p8
+      # No signing environment: this project has no Apple Developer Program
+      # membership, deliberately (research R2). Tauri therefore does not sign
+      # the bundle at all, which is what the next step exists to fix.
+      - name: Build
         run: pnpm tauri build --bundles app --target "$TARGET"
 
-      # Staple before zipping — a ticket stapled to a zip does not survive
-      # extraction. ditto preserves the extended attributes and resource forks
-      # that keep the signature valid; tar would not.
+      # Without an identity Tauri leaves the bundle unsealed: the Rust linker
+      # ad-hoc-signs the inner executable for the *host* architecture only, and
+      # there is no CodeResources seal, so `codesign -v` fails outright with
+      # "code has no resources but signature indicates they must be present"
+      # (measured). Two consequences, both handled here:
+      #
+      #  1. The cross-built x86_64 bundle gets no signature whatsoever from the
+      #     linker, because macos-latest runners are arm64. This step is what
+      #     makes the Intel artifact runnable at all.
+      #  2. verify-install-channels.yml checks `codesign --verify` in place of
+      #     the `spctl -a -t exec` it cannot pass. That check is only meaningful
+      #     because something deliberately sealed the bundle first.
+      #
+      # No --deep: it is deprecated, and this bundle has no nested code — the
+      # tree is Contents/{Info.plist, MacOS/<exe>, Resources/icon.icns}, so
+      # signing the outer bundle seals all of it. --timestamp=none because an
+      # ad-hoc signature cannot carry a secure timestamp, and without the flag
+      # codesign may reach for Apple's timestamp server and stall.
+      - name: Ad-hoc sign the app bundle
+        run: |
+          APP="src-tauri/target/${TARGET}/release/bundle/macos/Site Checker.app"
+          codesign --force --sign - --timestamp=none "$APP"
+          codesign --verify --strict --verbose=2 "$APP"
+          codesign -dv "$APP" 2>&1 | grep -q '^Signature=adhoc' || {
+            echo "::error::expected an ad-hoc signature on $APP after signing"
+            exit 1
+          }
+
+      # ditto rather than tar: it preserves the modes and directory structure
+      # the signature seals. There is no notarization ticket to staple.
       - name: Package
         run: |
           APP="src-tauri/target/${TARGET}/release/bundle/macos/Site Checker.app"
-          xcrun stapler validate "$APP"
           ditto -c -k --sequesterRsrc --keepParent "$APP" "site-checker-${TARGET}.zip"
 
       - uses: actions/upload-artifact@v4
@@ -211,6 +224,9 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    # The one job that publishes, and so the one job that needs write.
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -222,6 +238,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          # The action defaults this to false, which would publish a release
+          # with nothing attached if artifact naming ever drifted — and the
+          # failure would then surface a job later, at `gh release download`,
+          # after a release object already exists. Fail where the mistake is.
+          fail_on_unmatched_files: true
           files: |
             artifacts/site-checker-aarch64/site-checker-aarch64-apple-darwin.zip
             artifacts/site-checker-x86_64/site-checker-x86_64-apple-darwin.zip
@@ -229,10 +250,14 @@ jobs:
   # The only writer of clintcparker/homebrew-tap. It cannot run before a release
   # exists, and it reads the assets actually attached to that release rather than
   # predicting their names — so a missing or renamed asset fails here and leaves
-  # the tap untouched instead of publishing a cask that 404s.
+  # the tap untouched instead of publishing a formula that 404s.
   homebrew:
     needs: [preflight, release]
     runs-on: ubuntu-latest
+    # Read is enough: `gh release download` reads this public repository, and the
+    # tap push authenticates with TAP_PUSH_TOKEN rather than GITHUB_TOKEN.
+    permissions:
+      contents: read
     env:
       VERSION: ${{ needs.preflight.outputs.version }}
     steps:
@@ -254,7 +279,7 @@ jobs:
       # Two guards, both hard failures of the release, catching drift in either
       # direction: a template that gained a placeholder this step does not know
       # about, and a step that stopped substituting one the template still has.
-      - name: Render cask
+      - name: Render formula
         run: |
           template=install/homebrew/site-checker.rb
           placeholders="VERSION SHA256_ARM64 SHA256_X86_64"
@@ -276,26 +301,35 @@ jobs:
 
           for p in $placeholders; do
             if grep -q "$p" rendered/site-checker.rb; then
-              echo "::error::placeholder $p survived rendering — refusing to publish a broken cask"
+              echo "::error::placeholder $p survived rendering — refusing to publish a broken formula"
               exit 1
             fi
           done
+
+          # The placeholder guards above cannot see a malformed edit to the rest
+          # of the template, and the tap is public: without this, a syntax error
+          # reaches every user's `brew update` and the channel check downstream
+          # would still pass, because it only greps for a version string.
+          # `brew audit` is the fuller check and runs on the runner in
+          # verify-install-channels.yml; this is the part that can gate a push.
+          ruby -c rendered/site-checker.rb
+
           cat rendered/site-checker.rb
 
-      - name: Commit cask to tap
+      - name: Commit formula to tap
         env:
           TAP_PUSH_TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}
         run: |
           git clone "https://x-access-token:${TAP_PUSH_TOKEN}@github.com/clintcparker/homebrew-tap.git" tap
-          mkdir -p tap/Casks
-          cp rendered/site-checker.rb tap/Casks/site-checker.rb
+          mkdir -p tap/Formula
+          cp rendered/site-checker.rb tap/Formula/site-checker.rb
           cd tap
           if [ -z "$(git status --porcelain)" ]; then
-            echo "Cask unchanged — skipping commit (idempotent re-run)"
+            echo "Formula unchanged — skipping commit (idempotent re-run)"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Casks/site-checker.rb
+          git add Formula/site-checker.rb
           git commit -m "site-checker ${VERSION}"
           git push origin HEAD

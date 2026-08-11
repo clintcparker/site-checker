@@ -1,5 +1,39 @@
 # Tasks: Packaging & Distribution
 
+> ## Reconciliation — 2026-08-11: the channel changed from a cask to a formula
+>
+> R2 was answered **no** (no Apple Developer Program membership), and the fallback this
+> document assumed — `quarantine: false` in the cask — turned out **not to exist** in current
+> Homebrew. See [research.md](./research.md) R2's *Decision confirmed* block for the evidence
+> and the reasoning. The install command is unchanged; the mechanism behind it is not.
+>
+> Task-by-task effect:
+>
+> | Task | Now |
+> | --- | --- |
+> | T001, T005 (make the repo public) | ✅ **Done 2026-08-06** (`7e60e2e`, `5feac06`). Ticked below; they were completed and never recorded. |
+> | T002 (the R2 answer) | ✅ **Answered: no.** Its instruction to "apply R2's fallback: `quarantine: false` plus a `caveats` block" is obsolete and unachievable. Superseded by the formula switch. |
+> | T007, T008 (six Apple secrets) | ❌ **Obsolete.** No certificate and no App Store Connect key are needed. Struck below. |
+> | T006 (`TAP_PUSH_TOKEN`) | Still open, and now the **only** credential the pipeline needs. |
+> | T015, T016 (cask template) | 🔄 **Reopened.** The template is a formula; the `app` / `uninstall quit:` / `zap trash:` stanzas they describe no longer exist. |
+> | T018 (README) | 🔄 **Reopened.** `--zap` and the `/Applications` claims were wrong. |
+> | T021 (build job) | 🔄 **Reopened.** Certificate import, notarization env, and `stapler validate` removed; ad-hoc signing added. |
+> | T023, T025, T030, T036 | 🔄 **Reopened.** Tap path `Casks/` → `Formula/`, the secret probe, `spctl` → `codesign`, and the how-to's "Why signing is not optional here" — which argued for a decision since reversed. |
+> | T017 (`brew audit --cask --new`) | 🔄 **Amended** to `--formula`, and **relocated**: it runs on the macOS runner in `verify-install-channels.yml`, non-gating. It must not run on the maintainer's machine — it installs a vendored gem bundle and has already left Homebrew there unable to load `json`. A `ruby -c` gate in the render step covers the syntax half. |
+> | T027, T031, T046 | 🔄 **Amended** for the formula path and the new checksum check. |
+> | T035, T047 | Unchanged, still open. |
+> | T043, T044, T045 | 🔄 **Amended.** A throwaway `v0.0.1` proves the pipeline before `v1.0.0`; T044's `spctl` assertion becomes quarantine-absence plus `codesign --verify`; T045's `--zap` half is obsolete — assert instead that `--zap` is a no-op and that the documented `rm -rf` is what removes the data. |
+>
+> Also folded in on the way through, all previously recorded and unactioned: review findings
+> R001 (checksum drift), R002 (CDN-cached tap read), R003 (no `workflow_run` conclusion
+> filter), R005 (file-scope `contents: write`), R006 (`ruby -c` gate), R007
+> (`fail_on_unmatched_files`), R008 (hardcoded repo), R010 (`concurrency:`), R011 (annotated
+> tag unverified). R004 is moot — the credential steps it warned about are deleted. R009 is
+> moot — see SC-010.
+>
+> **The standing gate counts in the note below are stale.** They are now `cargo test` 62 and
+> `pnpm test` 47, raised by the separate correctness and coverage work on this branch.
+
 **Input**: Design documents from `specs/20260806-190127-packaging-and-distribution/`
 
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md),
@@ -133,14 +167,14 @@ plus the `.gitignore` change that makes FR-024's document committable at all.
 [plan.md](./plan.md#implementation-phasing). Nothing in Phases 3–6 can *run* until T005–T008 are
 done, though the files can all be authored first.
 
-- [ ] T001 Obtain the maintainer's explicit answer to R1 — make `clintcparker/site-checker` public — and record it as a **Decision confirmed** line under `## R1` in `specs/20260806-190127-packaging-and-distribution/research.md`. State in the record that the change is effectively irreversible and exposes the full history including every `specs/` document, `CHANGELOG.md`, and all commit messages. If the answer is **no**, stop and apply R1's "Fallback if the answer is keep it private" instead: Phases 2 and 7 still deliver, Phase 4's `homebrew` job is authored behind an `if: false` guard, and FR-001/FR-011/FR-020/FR-021/SC-001/SC-002/SC-004/SC-006 are recorded as deferred in `docs/ROADMAP.md`.
-- [ ] T002 Obtain the maintainer's explicit answer to R2 — Apple Developer Program membership, $99/yr — and record it as a **Decision confirmed** line under `## R2` in `specs/20260806-190127-packaging-and-distribution/research.md`. If **yes**, start enrolment immediately (identity verification can take days) and let Phases 2 and 7 proceed in parallel. If **no**, apply R2's fallback: `quarantine: false` plus a `caveats` block in the cask template (T015), FR-021 amended to `codesign -v` only (T031), and the Gatekeeper gap recorded in `docs/ROADMAP.md`.
+- [x] T001 Obtain the maintainer's explicit answer to R1 — make `clintcparker/site-checker` public — and record it as a **Decision confirmed** line under `## R1` in `specs/20260806-190127-packaging-and-distribution/research.md`. State in the record that the change is effectively irreversible and exposes the full history including every `specs/` document, `CHANGELOG.md`, and all commit messages. If the answer is **no**, stop and apply R1's "Fallback if the answer is keep it private" instead: Phases 2 and 7 still deliver, Phase 4's `homebrew` job is authored behind an `if: false` guard, and FR-001/FR-011/FR-020/FR-021/SC-001/SC-002/SC-004/SC-006 are recorded as deferred in `docs/ROADMAP.md`.
+- [x] T002 Obtain the maintainer's explicit answer to R2 — Apple Developer Program membership, $99/yr — and record it as a **Decision confirmed** line under `## R2` in `specs/20260806-190127-packaging-and-distribution/research.md`. If **yes**, start enrolment immediately (identity verification can take days) and let Phases 2 and 7 proceed in parallel. If **no**, apply R2's fallback: `quarantine: false` plus a `caveats` block in the cask template (T015), FR-021 amended to `codesign -v` only (T031), and the Gatekeeper gap recorded in `docs/ROADMAP.md`.
 - [X] T003 Change `.gitignore:25` from the bare `docs/` to the two lines `docs/*` and `!docs/how-to/`, then confirm with `git check-ignore -v docs/how-to/release.md` (expect no match) and `git check-ignore -v docs/ROADMAP.md` (expect still ignored). The exact shape is load-bearing — git cannot re-include a file whose parent directory is excluded (research R8). Do not un-ignore anything else under `docs/`.
 - [X] T004 [P] Create the empty destination directories `.github/workflows/`, `install/homebrew/`, and `docs/how-to/` at the worktree root.
-- [ ] T005 After T001 confirms: make the repository public with `gh repo edit clintcparker/site-checker --visibility public --accept-visibility-change-consequences`, then verify with `gh repo view clintcparker/site-checker --json isPrivate` (expect `false`).
+- [x] T005 After T001 confirms: make the repository public with `gh repo edit clintcparker/site-checker --visibility public --accept-visibility-change-consequences`, then verify with `gh repo view clintcparker/site-checker --json isPrivate` (expect `false`).
 - [ ] T006 [P] Create a fine-grained personal access token with **Contents: Read and write** on **`clintcparker/homebrew-tap` only** (FR-015, research R15) and set it with `gh secret set TAP_PUSH_TOKEN --repo clintcparker/site-checker`. Verify the scope by listing the token's repository access — it must name exactly one repository.
-- [ ] T007 [P] After T002 confirms: export the Developer ID Application certificate as a `.p12`, base64-encode it, and set `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, and `APPLE_SIGNING_IDENTITY` (the certificate common name) with `gh secret set --repo clintcparker/site-checker`.
-- [ ] T008 [P] After T002 confirms: create an App Store Connect API key and set `APPLE_API_ISSUER`, `APPLE_API_KEY_ID`, and `APPLE_API_KEY` (the `.p8`, base64-encoded) with `gh secret set --repo clintcparker/site-checker`. Use the API-key trio rather than an app-specific password — research R2 explains why (an app-specific password dies with the Apple ID password).
+- [~] ~~OBSOLETE (2026-08-11): no Developer ID certificate is needed.~~ T007 [P] After T002 confirms: export the Developer ID Application certificate as a `.p12`, base64-encode it, and set `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, and `APPLE_SIGNING_IDENTITY` (the certificate common name) with `gh secret set --repo clintcparker/site-checker`.
+- [~] ~~OBSOLETE (2026-08-11): no App Store Connect key is needed.~~ T008 [P] After T002 confirms: create an App Store Connect API key and set `APPLE_API_ISSUER`, `APPLE_API_KEY_ID`, and `APPLE_API_KEY` (the `.p8`, base64-encoded) with `gh secret set --repo clintcparker/site-checker`. Use the API-key trio rather than an app-specific password — research R2 explains why (an app-specific password dies with the Apple ID password).
 
 **Checkpoint**: `docs/how-to/` is committable, the seven secrets named in
 [data-model.md](./data-model.md#one-time-setup-credentials) exist, and both external decisions are

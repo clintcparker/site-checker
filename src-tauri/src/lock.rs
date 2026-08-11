@@ -73,6 +73,22 @@ impl SharedStore {
     /// is exactly the non-fatal problem the existing banner was built for
     /// (Constitution II). With no fault it emits nothing and behaves exactly as
     /// the unrecovered lock it replaced (FR-007).
+    ///
+    /// **This function is the deliberate exception to the rule stated in
+    /// `commands.rs`.** `add_site` and `update_site` both carry comments about
+    /// dropping the store guard before emitting, and both spend a pair of braces
+    /// to do it — so it is worth being explicit that the call below emits with
+    /// the guard still alive, on purpose, rather than leaving those comments
+    /// reading as contradicted by the very function they call.
+    ///
+    /// It is safe because the ordering is one-way: `AppHandle::emit` never
+    /// re-enters the store, and the store lock is never taken while `engine.rs`'s
+    /// `tasks` lock is held, so there is no cycle to invert. And it is not
+    /// cleanly avoidable — the recovery flag only exists once the guard is in
+    /// hand, and handing back a `(guard, bool)` pair would surrender the
+    /// "cannot forget to warn" guarantee that is the entire reason this type
+    /// exists. The exception buys that guarantee; the two `commands.rs` sites
+    /// have no such excuse, which is why they still pay the braces.
     pub fn lock(&self) -> MutexGuard<'_, Store> {
         let (guard, recovered) = recover(&self.inner);
         if recovered {
@@ -230,29 +246,67 @@ mod tests {
     /// prose is one bad comment away from a carve-out for code. Test code is not
     /// exempt either — that is why the helper above and `store.rs`'s contention
     /// tests acquire through `recover`.
+    ///
+    /// Two things about *how* it greps are deliberate, because the version before
+    /// this one got both wrong and so under-covered exactly where its own doc
+    /// comment claimed strength.
+    ///
+    /// It reads the source directory at run time rather than naming files with
+    /// `include_str!`. A hand-maintained list is complete only until the next
+    /// module is added, and nothing fails when someone forgets to extend it — the
+    /// new file simply falls outside the guard, silently, which is the failure
+    /// this test exists to prevent happening one level up.
+    ///
+    /// And it looks for a *set* of spellings, not one. Unwrapping the lock result
+    /// is merely the most common way to take an unrecovered lock; reaching for
+    /// `expect` or an `unwrap_or_*` on the same result does the same damage and
+    /// reads as ordinary Rust, so all three are needles now. Destructuring the
+    /// result with `if let Ok(..)` or `match` still slips through — those have no
+    /// fixed spelling to grep for — so this is a floor, not a ceiling, and the
+    /// test's name promises slightly more than it can deliver. Better to say so
+    /// than to let a future reader assume the coverage is total.
+    ///
+    /// Note the needles are assembled with `concat!` for the same reason the
+    /// original one was: naming them contiguously anywhere in this crate, prose
+    /// included, is itself a match. That is not a flaw to work around. A guard
+    /// with a carve-out for comments is one bad comment away from a carve-out for
+    /// code, so the prose bends and the check does not.
     #[test]
     fn no_module_in_this_crate_takes_a_lock_without_recovering() {
         // Concatenated so this assertion's own source text is not a match.
-        let unrecovered = concat!(".lock()", ".unwrap()");
-
-        let modules = [
-            ("lib.rs", include_str!("lib.rs")),
-            ("commands.rs", include_str!("commands.rs")),
-            ("engine.rs", include_str!("engine.rs")),
-            ("store.rs", include_str!("store.rs")),
-            ("check.rs", include_str!("check.rs")),
-            ("model.rs", include_str!("model.rs")),
-            ("main.rs", include_str!("main.rs")),
-            ("lock.rs", include_str!("lock.rs")),
+        let unrecovered = [
+            concat!(".lock()", ".unwrap()"),
+            concat!(".lock()", ".expect("),
+            concat!(".lock()", ".unwrap_or"),
         ];
 
-        for (name, source) in modules {
-            assert!(
-                !source.contains(unrecovered),
-                "{name} takes a lock without recovering from a prior fault. \
-                 Use SharedStore::lock for the site list, or lock::recover with a \
-                 comment saying why the flag is discarded (SC-002, FR-001)."
-            );
+        let src = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
+        let mut checked = 0;
+
+        for entry in std::fs::read_dir(src).expect("the crate's own src/ must be readable") {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                continue;
+            }
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            let source = std::fs::read_to_string(&path).unwrap();
+            checked += 1;
+
+            for needle in unrecovered {
+                assert!(
+                    !source.contains(needle),
+                    "{name} takes a lock without recovering from a prior fault \
+                     (found `{needle}`). Use SharedStore::lock for the site list, or \
+                     lock::recover with a comment saying why the flag is discarded \
+                     (SC-002, FR-001)."
+                );
+            }
         }
+
+        assert!(
+            checked >= 8,
+            "only {checked} module(s) were scanned — the directory walk found less than the \
+             crate holds, so a pass here would mean nothing"
+        );
     }
 }

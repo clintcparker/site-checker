@@ -288,6 +288,95 @@ mod tests {
         );
     }
 
+    /// The redirect limit is a client setting with no test behind it until now.
+    /// A server that redirects to itself is the cheapest way to exceed it, and it
+    /// exercises the `is_redirect` arm of `transport_failure`, which was the only
+    /// arm no test reached.
+    #[tokio::test]
+    async fn a_redirect_chain_past_the_limit_is_down_and_says_so() {
+        let server = MockServer::start_async().await;
+        server
+            .mock_async(|when, then| {
+                when.method(HEAD).path("/loop");
+                then.status(302).header("location", "/loop");
+            })
+            .await;
+
+        let outcome = check_url(&build_client(), &server.url("/loop"), None).await;
+
+        assert_eq!(outcome.state, CheckState::Down);
+        assert_eq!(
+            outcome.reason.as_deref(),
+            Some("Too many redirects"),
+            "a hop limit reached is a transport failure, not a final 3xx — a final 3xx is Up"
+        );
+    }
+
+    /// The gap this closes: `used_get_fallback == true` was pinned only for the
+    /// case where the GET *retry succeeds in reaching the server* and answers 500.
+    /// When the retry dies at the transport layer instead, the flag travels a
+    /// different return path — `transport_failure(&e, true)` — and nothing proved
+    /// it still carried `true`. If it regressed to `false` the app would re-probe
+    /// HEAD on every future check of a server it already knows is HEAD-hostile.
+    #[tokio::test]
+    async fn a_get_retry_that_fails_at_the_transport_layer_still_reports_the_fallback() {
+        let server = MockServer::start_async().await;
+        server
+            .mock_async(|when, then| {
+                when.method(HEAD).path("/");
+                then.status(405);
+            })
+            .await;
+        server
+            .mock_async(|when, then| {
+                when.method(GET).path("/");
+                then.status(302).header("location", "/");
+            })
+            .await;
+
+        let outcome = check_url(&build_client(), &server.url("/"), None).await;
+
+        assert_eq!(outcome.state, CheckState::Down);
+        assert_eq!(outcome.reason.as_deref(), Some("Too many redirects"));
+        assert!(
+            outcome.used_get_fallback,
+            "HEAD was still refused, so the discovery is still worth persisting — the retry \
+             failing for an unrelated reason does not un-learn it"
+        );
+    }
+
+    /// A server that refuses both methods. The point is that the retry happens
+    /// exactly once: `check_url` has no loop, and this is what says so.
+    ///
+    /// It also pins a consequence worth being deliberate about — the fallback is
+    /// still reported, so the caller persists `method_override = GET` for a server
+    /// that answered 405 to GET as well. That is the right trade: HEAD was refused,
+    /// which is all the flag claims, and the alternative is re-probing HEAD forever
+    /// against a server that has already refused it twice.
+    #[tokio::test]
+    async fn a_405_to_both_methods_retries_once_and_stops() {
+        let server = MockServer::start_async().await;
+        server
+            .mock_async(|when, then| {
+                when.method(HEAD).path("/");
+                then.status(405);
+            })
+            .await;
+        let get_mock = server
+            .mock_async(|when, then| {
+                when.method(GET).path("/");
+                then.status(405);
+            })
+            .await;
+
+        let outcome = check_url(&build_client(), &server.url("/"), None).await;
+
+        assert_eq!(outcome.state, CheckState::Down);
+        assert_eq!(outcome.reason.as_deref(), Some("HTTP 405"));
+        assert!(outcome.used_get_fallback);
+        get_mock.assert_calls_async(1).await;
+    }
+
     #[tokio::test]
     async fn an_unresolvable_host_is_down() {
         let outcome = check_url(

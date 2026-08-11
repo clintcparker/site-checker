@@ -1,8 +1,8 @@
 # How to Release Site Checker
 
 The entire release procedure is pushing one annotated tag. Everything else — the
-four gates, both architecture builds, signing, notarization, stapling, the
-GitHub Release, and the Homebrew cask in the tap — is done by
+four gates, both architecture builds, ad-hoc signing, the GitHub Release, and the
+Homebrew formula in the tap — is done by
 [`.github/workflows/release.yml`](../../.github/workflows/release.yml).
 
 ## Release procedure
@@ -17,10 +17,14 @@ The tag **must** be `v<MAJOR>.<MINOR>.<PATCH>` — a `v` prefix and exactly thre
 numeric components. `v1.0.0`, `v1.2.3`, and `v10.0.1` release; `v1.2`, `vnext`,
 and `1.0.0` do not.
 
+**The tag must be annotated.** `git tag -a`, not a bare `git tag`. Pre-flight
+checks this against the API — an annotated tag's ref points at a `tag` object, a
+lightweight one points straight at a `commit`.
+
 **Prereleases are rejected on purpose.** `v1.2.3-rc.1` fails pre-flight rather
-than releasing. A cask has no channel concept, so a prerelease rendered into the
-tap becomes *the* version served to everyone by `brew install`. If prereleases
-are ever wanted, they need either a separate cask name or a `prerelease: true`
+than releasing. A tap has no channel concept, so a prerelease rendered into it
+becomes *the* version served to everyone by `brew install`. If prereleases are
+ever wanted, they need either a separate formula name or a `prerelease: true`
 release that the `homebrew` job skips — a decision to make deliberately, not
 something to allow by accident.
 
@@ -32,9 +36,9 @@ request that edits those sentinels — see the "Version sentinel" step in
 [`ci.yml`](../../.github/workflows/ci.yml).
 
 After the run goes green, the release-triggered **Verify Install Channels**
-workflow confirms the assets are reachable, the tap advertises the same version,
-and a real `brew install` on a clean macOS runner produces an app that Gatekeeper
-accepts.
+workflow confirms the assets are reachable, the tap advertises the same version
+*and the same checksums*, and a real `brew install` on a clean macOS runner
+produces a bundle that is unquarantined and whose signature verifies.
 
 ## One-time setup checklist
 
@@ -42,19 +46,16 @@ The `preflight` job fails within seconds — naming every missing piece in one r
 rather than one per attempt — until all of the following exist. None of them
 recur per release.
 
-1. **The repository must be public.** Homebrew downloads a cask's `url` with an
-   unauthenticated request, so a release asset on a private repository returns
-   404 to every user, including you on a machine without a token. There is no
-   cask-side workaround: casks cannot carry a credential.
+1. **The repository must be public.** ✅ Done — 2026-08-06. Homebrew downloads
+   the `url` with an unauthenticated request, so a release asset on a private
+   repository returns 404 to every user, including you on a machine without a
+   token. There is no workaround: a tap entry cannot carry a credential.
 
-   ```sh
-   gh repo edit clintcparker/site-checker --visibility public --accept-visibility-change-consequences
-   ```
-
-2. **Public tap repository `clintcparker/homebrew-tap`.** It already exists and
-   already holds `Formula/name-on.rb`; the release job creates `Casks/` on first
-   publish. Never edit `Casks/site-checker.rb` there by hand — the canonical
-   template is [`install/homebrew/site-checker.rb`](../../install/homebrew/site-checker.rb)
+2. **Public tap repository `clintcparker/homebrew-tap`.** ✅ Exists, and already
+   holds `Formula/name-on.rb`. The release job writes
+   `Formula/site-checker.rb` alongside it. Never edit that file by hand — the
+   canonical template is
+   [`install/homebrew/site-checker.rb`](../../install/homebrew/site-checker.rb)
    in this repository, and the tap is written only by automation.
 
 3. **`TAP_PUSH_TOKEN`** — a fine-grained personal access token with
@@ -67,54 +68,53 @@ recur per release.
    gh secret set TAP_PUSH_TOKEN --repo clintcparker/site-checker
    ```
 
-4. **Apple Developer Program membership** ($99/yr) and a **Developer ID
-   Application** certificate. Export it as a `.p12` and set three secrets:
+That is the whole checklist. There is no Apple credential to set — see below.
 
-   ```sh
-   base64 -i DeveloperID.p12 | gh secret set APPLE_CERTIFICATE --repo clintcparker/site-checker
-   gh secret set APPLE_CERTIFICATE_PASSWORD --repo clintcparker/site-checker
-   gh secret set APPLE_SIGNING_IDENTITY --repo clintcparker/site-checker   # the certificate common name
-   ```
+### Why this is a formula, and what that costs
 
-5. **App Store Connect API key** for notarization — an Issuer ID, a Key ID, and
-   the `.p8`:
+**Decided 2026-08-11: no Apple Developer Program membership.** The consequence
+is not cosmetic, so it is written down here rather than left to be rediscovered.
 
-   ```sh
-   gh secret set APPLE_API_ISSUER --repo clintcparker/site-checker
-   gh secret set APPLE_API_KEY_ID --repo clintcparker/site-checker
-   base64 -i AuthKey_XXXXXXXXXX.p8 | gh secret set APPLE_API_KEY --repo clintcparker/site-checker
-   ```
+Homebrew *formulae* do not quarantine what they install; *casks* do —
+unconditionally. `Cask::Download#fetch` attaches `com.apple.quarantine` to every
+download, there has never been a `quarantine` cask DSL stanza, and Homebrew
+removed `--no-quarantine` outright. A quarantined bundle carrying only an ad-hoc
+signature opens as *"damaged"*, and **nothing the cask author or the user can set
+will prevent it**. So a cask is only viable with a Developer ID signature and
+notarization, which needs the $99/yr membership.
 
-   An API key rather than an app-specific password on purpose: an app-specific
-   password is tied to the Apple ID's 2FA and is revoked whenever that account's
-   password changes, which would break a release silently and at the worst
-   moment. API keys are revoked independently.
+Shipping a formula sidesteps quarantine entirely: nothing flags the download, so
+the app opens with no prompt and no right-click-open. `brew install
+clintcparker/tap/site-checker` is unchanged, because Homebrew resolves a
+tap-qualified name against both `Formula/` and `Casks/`.
 
-   Note the deliberate name shift inside the workflow: Tauri's `APPLE_API_KEY`
-   environment variable wants the *Key ID*, while the repository secret of that
-   name holds the base64 `.p8`. The workflow writes the `.p8` to a file and
-   points `APPLE_API_KEY_PATH` at it.
+Three things are genuinely lost, and none of them is recoverable without paying:
 
-### Why signing is not optional here
+- **Provenance.** An ad-hoc signature proves the bundle has not been modified
+  since it was signed. It proves nothing about *who* signed it. There is no
+  longer any check that the bytes a user installs are the bytes CI built.
+  `spctl -a -t exec` cannot pass, so FR-021 is amended to `codesign --verify`,
+  which is a real check of a strictly weaker property.
+- **`/Applications`.** A formula cannot write there — Homebrew's build and
+  post-install sandboxes deny every write outside the Cellar, and `brew
+  linkapps` is gone. The bundle lives in `libexec`, reached by the
+  `site-checker` wrapper on `PATH` or by a symlink the user makes once.
+- **Spotlight and Launchpad.** Neither indexes an app through a symlink.
 
-Homebrew *formulae* do not quarantine what they install; *casks* do. An
-unnotarized `.app` installed from a cask opens as "damaged" on any machine but
-the one that built it. The cheap alternative — `quarantine: false` in the cask —
-would stop the user seeing a prompt but would not make the bundle verifiable, and
-`spctl -a -t exec` would still reject it. That check is the one thing catching
-"the maintainer sees a green release, the user sees a broken install", so it is
-kept and the membership is paid for.
+If the membership is ever bought, the way back is: restore the certificate and
+notarization steps in `release.yml`, swap this template back to a cask with an
+`app`/`uninstall`/`zap` stanza, and put `spctl -a -t exec` back in
+`verify-install-channels.yml`. Nothing else changes.
 
 ## What pre-flight can and cannot tell you
 
-Pre-flight checks that every secret is **present**. It cannot check that any of
-them is **valid**.
+Pre-flight checks that `TAP_PUSH_TOKEN` is **present**, and that the tag is
+annotated and correctly shaped. It cannot check that the token is **valid**.
 
-An expired Developer ID certificate, a revoked App Store Connect key, or a
-`TAP_PUSH_TOKEN` scoped to the wrong repository all pass pre-flight and fail
-later — at the signing step, at `notarytool submit`, or at the tap push. This is
-a known limit, not an oversight: validating a certificate means using it, and
-using it means building first, which is exactly what pre-flight exists to avoid.
+A revoked token, or one scoped to the wrong repository, passes pre-flight and
+fails later at the tap push. This is a known limit, not an oversight: validating
+a credential means using it, and using it means building first, which is exactly
+what pre-flight exists to avoid.
 
 Credential expiry between releases is caught by the daily **Verify Install
 Channels** run, not by a fast pre-flight message.
@@ -126,17 +126,22 @@ erroring:
 
 - **GitHub Release** — `softprops/action-gh-release` updates the existing release
   for the tag rather than failing, re-uploading assets as needed.
-- **Tap cask commit** — skipped when the rendered `Casks/site-checker.rb` is
-  byte-identical to what the tap already holds, so re-runs do not create empty
+- **Tap formula commit** — skipped when the rendered `Formula/site-checker.rb`
+  is byte-identical to what the tap already holds, so re-runs do not create empty
   commits.
 
 **"Unchanged content → no commit" is not "re-running is a no-op."** A re-run
 rebuilds, and a Tauri build is not bit-reproducible — timestamps differ and the
 signature embeds a signing time — so the `.zip` checksums change, which changes
-the rendered cask, which means the tap *will* commit again. That is correct: the
-cask must match the assets that actually exist. The skip path is only exercised
-when the release job did not re-upload, which in practice means re-running the
-`homebrew` job alone.
+the rendered formula, which means the tap *will* commit again. That is correct:
+the formula must match the assets that actually exist. The skip path is only
+exercised when the release job did not re-upload, which in practice means
+re-running the `homebrew` job alone.
+
+This is also why the daily verification compares checksums and not just the
+version string. A run where `release` succeeded and `homebrew` did not leaves a
+tap whose version and URLs look right and whose `sha256` values point at bytes
+that no longer exist — and `brew install` aborts on the mismatch.
 
 To abandon a botched tag entirely:
 
@@ -147,7 +152,7 @@ gh release delete <tag> --yes   # only if a release object was created
 
 ## Building a DMG locally
 
-Nothing distributes a DMG any more — the cask serves a `.zip` containing the
+Nothing distributes a DMG any more — the tap serves a `.zip` containing the
 `.app`, and `tauri.conf.json`'s bundle targets are reduced to `["app"]` so no
 automated build can reach the DMG bundler. That is deliberate: laying out a DMG's
 Finder window calls `osascript`, which blocks forever waiting for a GUI-automation

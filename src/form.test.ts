@@ -102,6 +102,21 @@ function addDeleteButton(id: string): HTMLButtonElement {
   return button;
 }
 
+/** The same shape for the row's Edit button — the other half of the delegated
+ *  listener on `#rows`, and the only way into `enterEditMode`. */
+function addEditButton(id: string): HTMLButtonElement {
+  const tr = document.createElement("tr");
+  tr.dataset.id = id;
+  const button = document.createElement("button");
+  button.className = "row-action row-action-edit";
+  button.dataset.action = "edit";
+  button.dataset.id = id;
+  button.textContent = "Edit";
+  tr.append(button);
+  tbody().append(tr);
+  return button;
+}
+
 beforeEach(() => {
   // `reset`, not `clear` — each test installs its own stub behaviour and must
   // not inherit the previous one's.
@@ -241,5 +256,62 @@ describe("delete is guarded while a delete is in flight", () => {
     expect(button.disabled).toBe(false);
     expect(onDeleted).not.toHaveBeenCalled();
     expect(errorLine().textContent).toBe("sites.json is read-only");
+  });
+});
+
+describe("edit mode", () => {
+  const existing = site("a", {
+    url: "https://a.example.com",
+    label: "Homepage",
+    interval_secs: 300,
+  });
+
+  it("fills every field from the looked-up site and switches the form to Save", () => {
+    mount((id) => (id === "a" ? existing : undefined));
+
+    addEditButton("a").click();
+
+    // Each field is asserted separately on purpose: a single wrong assignment
+    // here silently edits the wrong thing, and the submit path's tests pass
+    // regardless because they set the fields themselves.
+    expect(idField().value).toBe("a");
+    expect(urlField().value).toBe("https://a.example.com");
+    expect(el<HTMLInputElement>("#site-label").value).toBe("Homepage");
+    expect(intervalField().value).toBe("300");
+    expect(submitButton().textContent).toBe("Save");
+    expect(cancelButton().hidden).toBe(false);
+  });
+
+  it("shows an empty label field for a site that has none, rather than 'undefined'", () => {
+    mount((id) => (id === "b" ? site("b") : undefined));
+
+    addEditButton("b").click();
+
+    expect(el<HTMLInputElement>("#site-label").value).toBe("");
+  });
+
+  it("does nothing when the row's id is no longer in the list", () => {
+    mount(() => undefined);
+
+    addEditButton("vanished").click();
+
+    expect(submitButton().textContent).toBe("Add");
+    expect(idField().value).toBe("");
+  });
+
+  it("returns to a clean Add form when Cancel is clicked", () => {
+    mount((id) => (id === "a" ? existing : undefined));
+    addEditButton("a").click();
+
+    cancelButton().click();
+
+    // The hidden id field is the one that matters: leave it set and the next
+    // submit silently overwrites the site the user thought they stopped editing.
+    expect(idField().value).toBe("");
+    expect(urlField().value).toBe("");
+    expect(el<HTMLInputElement>("#site-label").value).toBe("");
+    expect(intervalField().value).toBe("60");
+    expect(submitButton().textContent).toBe("Add");
+    expect(cancelButton().hidden).toBe(true);
   });
 });

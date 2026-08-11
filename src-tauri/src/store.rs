@@ -70,10 +70,20 @@ pub fn load(path: PathBuf) -> LoadOutcome {
     };
 
     match serde_json::from_str::<Vec<Site>>(&raw) {
-        Ok(sites) => LoadOutcome {
-            store: Store { path, sites },
-            warning: None,
-        },
+        Ok(sites) => {
+            let (sites, dropped) = drop_duplicate_ids(sites);
+            LoadOutcome {
+                store: Store { path, sites },
+                warning: (dropped > 0).then(|| {
+                    format!(
+                        "sites.json held {dropped} entr{} sharing an id with an earlier one. \
+                         The first of each was kept and the rest ignored; the existing file \
+                         has been left alone.",
+                        if dropped == 1 { "y" } else { "ies" }
+                    )
+                }),
+            }
+        }
         Err(e) => LoadOutcome {
             store: Store { path, sites: Vec::new() },
             warning: Some(format!(
@@ -82,6 +92,31 @@ pub fn load(path: PathBuf) -> LoadOutcome {
             )),
         },
     }
+}
+
+/// Keep the first entry for each id, and report how many later ones were dropped.
+///
+/// `Store::add` refuses an id the list already holds, but that guard only covers
+/// the **append** path. A hand-edited, restored, or imported `sites.json` can put
+/// two entries with the same id in front of `load`, and every lookup below this
+/// line assumes ids are unique: `get`, `replace`, and `update` act on the first
+/// match while `delete` removes both. Enforcing the invariant here means it holds
+/// for every `Store` however the list arrived, rather than only for lists this
+/// process appended to.
+///
+/// The *later* entry loses, so the result is what a reader going down the file
+/// top-down would have seen. The file itself is deliberately left alone — the
+/// next save rewrites it, and until then the discarded entry is recoverable by
+/// hand, which is the same bargain the corrupt-file branch above strikes.
+fn drop_duplicate_ids(sites: Vec<Site>) -> (Vec<Site>, usize) {
+    let before = sites.len();
+    let mut seen = std::collections::HashSet::new();
+    let kept: Vec<Site> = sites
+        .into_iter()
+        .filter(|s| seen.insert(s.id.clone()))
+        .collect();
+    let dropped = before - kept.len();
+    (kept, dropped)
 }
 
 impl Store {
@@ -574,6 +609,39 @@ mod tests {
         assert_eq!(reloaded.list()[0].id, "one", "order is preserved");
     }
 
+    /// `update` is the blind write `engine::persist_get_fallback` uses, and it
+    /// silently does nothing when the id is gone — which is the *right* behaviour
+    /// (a check that outlived its site's deletion must not resurrect it) but had
+    /// no test, so nothing distinguished it from a bug.
+    ///
+    /// The `Ok` matters as much as the no-op: this returns the result of the save
+    /// that follows, so a caller cannot read `Ok` as "the site was updated". It
+    /// means "nothing failed".
+    #[test]
+    fn updating_a_missing_id_changes_nothing_and_still_reports_ok() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sites.json");
+
+        let mut store = load(path.clone()).store;
+        store.add(a_site("one")).unwrap();
+
+        let mut ghost = a_site("gone");
+        ghost.interval_secs = 999;
+        assert!(
+            store.update(ghost).is_ok(),
+            "the save still ran and still succeeded"
+        );
+
+        let reloaded = load(path).store;
+        assert_eq!(
+            reloaded.list().len(),
+            1,
+            "a blind write for a deleted site must not resurrect it"
+        );
+        assert_eq!(reloaded.list()[0].id, "one");
+        assert!(reloaded.get("gone").is_none());
+    }
+
     #[test]
     fn delete_removes_only_the_named_site() {
         let dir = tempfile::tempdir().unwrap();
@@ -604,6 +672,99 @@ mod tests {
             still_there, "{ this is not json",
             "the bad file must not be overwritten so it can be recovered by hand"
         );
+    }
+
+    /// Two entries, one id. `add` could never have produced this file; a hand
+    /// edit, a restore, or an importer can. The invariant `AddError::DuplicateId`
+    /// protects has to hold for a list that arrived through `load` too, because
+    /// everything downstream of here already assumes it does.
+    #[test]
+    fn load_keeps_the_first_of_two_entries_sharing_an_id_and_warns() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sites.json");
+        let clash = Site {
+            url: "https://second.example.com".to_string(),
+            ..a_site("one")
+        };
+        std::fs::write(&path, serde_json::to_string(&[a_site("one"), clash]).unwrap()).unwrap();
+
+        let outcome = load(path.clone());
+
+        assert_eq!(outcome.store.list().len(), 1, "the duplicate must not load");
+        assert_eq!(
+            outcome.store.list()[0].url,
+            "https://one.example.com",
+            "the first entry wins, so the result is what a top-down reader would have seen"
+        );
+        assert!(
+            outcome.warning.is_some(),
+            "silently dropping a site the user can see in the file would be worse than the \
+             duplicate — this rides the same banner channel the corrupt-file case uses"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            serde_json::to_string(&[
+                a_site("one"),
+                Site {
+                    url: "https://second.example.com".to_string(),
+                    ..a_site("one")
+                }
+            ])
+            .unwrap(),
+            "and the file is left alone, so the discarded entry is recoverable by hand"
+        );
+    }
+
+    /// The other half: the guard must not fire on a file that is merely fine.
+    /// Without this, `load` returning a warning for every list would pass the
+    /// test above.
+    #[test]
+    fn load_warns_about_nothing_when_every_id_is_distinct() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sites.json");
+        std::fs::write(
+            &path,
+            serde_json::to_string(&[a_site("one"), a_site("two"), a_site("three")]).unwrap(),
+        )
+        .unwrap();
+
+        let outcome = load(path);
+
+        assert_eq!(outcome.store.list().len(), 3);
+        assert!(outcome.warning.is_none());
+    }
+
+    /// A duplicate that survived `load` would make `delete` remove two rows for
+    /// one click while `get` only ever saw one of them — the concrete divergence
+    /// the dedupe exists to prevent, pinned so the reason outlives the fix.
+    #[test]
+    fn a_deduped_load_leaves_delete_and_get_agreeing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sites.json");
+        std::fs::write(
+            &path,
+            serde_json::to_string(&[a_site("one"), a_site("one"), a_site("two")]).unwrap(),
+        )
+        .unwrap();
+
+        let mut store = load(path).store;
+
+        // This is the assertion that distinguishes the two implementations, and
+        // it has to come *before* the delete: without the dedupe the list is
+        // three long and `get` can still only ever reach the first "one", so the
+        // window shows one row per id while the store holds two.
+        assert_eq!(
+            store.list().len(),
+            2,
+            "the list the window renders must have one entry per id"
+        );
+
+        assert!(store.get("one").is_some());
+        store.delete("one").unwrap();
+
+        assert!(store.get("one").is_none());
+        assert_eq!(store.list().len(), 1);
+        assert_eq!(store.list()[0].id, "two");
     }
 
     #[test]
