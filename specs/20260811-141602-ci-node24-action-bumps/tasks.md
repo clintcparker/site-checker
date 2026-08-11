@@ -104,7 +104,7 @@ emits its warnings on tag pushes, so it is invisible until a release and can shi
 - [X] T004 [US1] Bump `pnpm/action-setup@v4` → `@v6` on line 73 (now 92) of `.github/workflows/ci.yml`
 - [X] T005 [US1] Bump `actions/setup-node@v4` → `@v6` on line 75 (now 94) of `.github/workflows/ci.yml`, leaving the `node-version: 22` and `cache: pnpm` inputs exactly as they are — the explicit `cache` input is what makes the v5/v6 auto-caching change a no-op here
 - [X] T006 [US1] Validate the edited `.github/workflows/ci.yml` parses as YAML (e.g. `python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml'))"`) and confirm no `@v4` pin remains except intentionally unchanged actions
-- [ ] T007 [US1] Push the branch and confirm via `gh api repos/clintcparker/site-checker/check-runs/<id>/annotations` that both `CI` jobs return `[]` and both conclude `success`
+- [X] T007 [US1] Push the branch and confirm via `gh api repos/clintcparker/site-checker/check-runs/<id>/annotations` that both `CI` jobs return `[]` and both conclude `success` — **done during ship**: PR #27 triggered run [31539366957](https://github.com/clintcparker/site-checker/actions/runs/31539366957); `rust` → `success` with `annotations: 0`, `frontend` → `success` with `annotations: 0`. The Node 20 deprecation warning is gone from `CI`. US1's success criterion is met on a live runner, not by inspection.
 
 **Checkpoint**: The linked run's warning is gone. This is independently shippable.
 
