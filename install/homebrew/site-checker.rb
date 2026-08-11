@@ -21,11 +21,16 @@
 # lives under its cask/ directory. Homebrew resolves a tap-qualified name
 # against both Formula/ and Casks/, so the advertised install line is unchanged.
 #
-# What the switch costs is real and is recorded in docs/ROADMAP.md: a formula
-# cannot write to /Applications, because Homebrew's build and post-install
-# sandboxes deny every write outside the Cellar. The bundle therefore lives in
-# the keg, reached by the `site-checker` wrapper below or by the optional
-# symlink in `caveats`. Spotlight and Launchpad do not index through a symlink.
+# What the switch costs is real: a formula cannot write to /Applications, because
+# Homebrew's build and post-install sandboxes deny every write outside the
+# Cellar. The bundle therefore lives in the keg, reached by the `site-checker`
+# wrapper below or by the optional symlink in `caveats`. Spotlight and Launchpad
+# do not index through a symlink. All three losses — that one, no provenance, and
+# no data-removing uninstall — are recorded in full at
+# https://github.com/clintcparker/site-checker/issues/20
+# (This file is published to a public tap, so every reference in it must resolve
+# for a reader who has only the tap. It previously cited docs/ROADMAP.md, which
+# is gitignored and exists on no machine but the maintainer's.)
 
 class SiteChecker < Formula
   desc "Small macOS dashboard that checks whether your sites are up"

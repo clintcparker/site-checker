@@ -1,5 +1,9 @@
 # Implementation Plan: v1 Cleanup — Scaffold Leftovers & Message Clarity
 
+> ⛔ **Superseded by [`specs/001-scaffold-cleanup/`](../001-scaffold-cleanup/plan.md)**, which is
+> the cycle that shipped. This one never reached `tasks.md`. See
+> [spec.md](./spec.md) for why it is kept rather than deleted.
+
 **Branch**: `20260805-150909-cleanup-scaffold-leftovers` | **Date**: 2026-08-05 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `specs/20260805-150909-cleanup-scaffold-leftovers/spec.md`

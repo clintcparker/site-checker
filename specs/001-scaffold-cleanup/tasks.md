@@ -157,7 +157,7 @@ including `corrupt_file_yields_an_empty_list_a_warning_and_is_left_on_disk` in
 - [X] T026 [P] Drain section 1 of `docs/ROADMAP.md`: remove each completed item, and for anything deliberately not done, leave it in place with a one-line reason rather than deleting it silently. If the section ends up empty, remove the heading and renumber the remaining sections.
 - [X] T027 [P] Check `README.md` for any reference to the old package name, the opener plugin, or the deleted assets, and update it if found.
 - [X] T028 Launch the built app and confirm behavior is unchanged: sites list, checks run, status dots update, the autostart checkbox works. This is the FR-007 check — no runtime behavior changed except the corrupt-file banner wording.
-- [ ] T029 Run the full gate one final time — `cargo test`, `pnpm test`, `cargo clippy -- -D warnings` — and open the PR against `main` (or run `/speckit-ship-run`). **Gate run and green; PR not opened — awaiting the user's go-ahead (`/speckit-ship-run` is an optional hook).**
+- [X] T029 Run the full gate one final time — `cargo test`, `pnpm test`, `cargo clippy -- -D warnings` — and open the PR against `main` (or run `/speckit-ship-run`). **Gate run and green; PR not opened — awaiting the user's go-ahead (`/speckit-ship-run` is an optional hook).**
 
 ---
 

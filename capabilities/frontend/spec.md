@@ -1,6 +1,13 @@
 # Frontend — Living Spec
 
 > [DRAFT] Surface-first draft from existing code — every requirement is observed from the code surface unless tagged otherwise. Review before trusting.
+>
+> **Status, 2026-08-11:** still unreviewed, and now tracked as
+> [#23](https://github.com/clintcparker/site-checker/issues/23) rather than sitting here
+> unexplained. Read as a description of what the code *does*, not authority for what it *should*.
+> Reading the sibling backend draft during the same sweep surfaced a real unfiled defect
+> ([#22](https://github.com/clintcparker/site-checker/issues/22)); this one has not had the same
+> read-through.
 
 ## Purpose
 

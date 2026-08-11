@@ -2,6 +2,60 @@
 
 All notable changes to Site Checker are recorded here.
 
+## Site Checker 1.0.0 — 2026-08-11
+
+**`brew install clintcparker/tap/site-checker` works.** This supersedes the entry
+below's **"Still not live"**, which was accurate when written: `v1.0.0` is
+published with both `site-checker-aarch64-apple-darwin.zip` and
+`site-checker-x86_64-apple-darwin.zip`, `TAP_PUSH_TOKEN` is set, and the tap
+carries `Formula/site-checker.rb` at 1.0.0. `verify-install-channels` is green,
+including a real `brew install` on a clean macOS runner: the bundle is
+unquarantined, `codesign --verify --strict` passes, `Signature=adhoc`, the `bin`
+wrapper is on `PATH`, and `CFBundleShortVersionString` reads `1.0.0`.
+
+The thing worth recording is not that a tag was pushed. It is that **the release
+pipeline had never executed once**, and four throwaway `v0.0.1` rounds — pushed,
+watched, torn down — found **three real defects** that no amount of reading the
+YAML had surfaced. All three are Homebrew behaviour, not Tauri or GitHub Actions:
+
+- **Homebrew chdirs into the archive.** When a staged archive leaves exactly one
+  top-level directory, `AbstractDownloadStrategy#chdir` enters it. Ours always
+  does: `ditto --keepParent` puts `Site Checker.app` at the root and the zip
+  strategy removes the sibling `__MACOSX` *before* the count is taken. So
+  `install` ran *inside* the bundle and `libexec.install "Site Checker.app"`
+  looked for a nested copy of itself. Reproduced locally once named, but only
+  ever named by a real install.
+- **`.brew_home` landed inside the signed bundle.** `Formula#stage` creates a
+  scratch `HOME` at `buildpath/.brew_home` — and because of the defect above,
+  `buildpath` *was* the bundle. The fix for the first defect swept it in, and
+  verification failed with `unsealed contents present in the bundle root`. The
+  install now takes `Contents` alone.
+- **`on_arm`/`on_intel` are not a legal home for `url`/`sha256`.** They permit a
+  fixed method list that does not include either. The unsupported form
+  **installed correctly anyway** — which is precisely why it could not stay:
+  something that works by accident stops working on a Homebrew upgrade, in the
+  tap, for users, rather than here. Now `on_macos do … Hardware::CPU.arm? … end`,
+  matching the sibling formula already in the same tap.
+
+The second of those cost a release cycle per guess before it was named, so the
+verification step now dumps the bundle root, `Contents`, the keg and full signing
+detail on the failure path — the diagnostics landed between the second and third
+fix, and are the reason the third was a single round.
+
+One `brew audit` finding is **deliberately unfixed**: *"`version` is redundant
+with version scanned from URL"*. Dropping the stanza breaks the URL's
+`#{version}` interpolation and `verify-install-channels.yml`'s lagging-channel
+grep for `version "<x>"`. It is a homebrew-core submission nit that does not apply
+to a personal tap — which is why that step is non-gating rather than removed.
+Filed as an issue so it is a decision on record rather than a recurring surprise.
+
+Gates at this release: `cargo test` 62, `pnpm test` 47, `cargo clippy -- -D
+warnings` clean, `pnpm build` clean, `actionlint` clean.
+
+Release: [`v1.0.0`](https://github.com/clintcparker/site-checker/releases/tag/v1.0.0) ·
+Tap: [`clintcparker/homebrew-tap` `Formula/site-checker.rb`](https://github.com/clintcparker/homebrew-tap/blob/main/Formula/site-checker.rb) ·
+Spec: [`specs/20260806-190127-packaging-and-distribution/spec.md`](specs/20260806-190127-packaging-and-distribution/spec.md)
+
 ## The install channel becomes a formula, not a cask — 2026-08-11
 
 The second of the two maintainer decisions the packaging entry left open is
@@ -56,6 +110,8 @@ no `concurrency:` group (R010), and the annotated-tag requirement nothing checke
 **Still not live.** No `v1.0.0` exists and `TAP_PUSH_TOKEN` is not set, so
 `brew install` does not work yet. What changed is that the remaining work is one
 credential and one tag, with no purchase and no enrolment wait in front of it.
+*(Superseded the same day by [Site Checker 1.0.0](#site-checker-100--2026-08-11):
+that credential was set and that tag was pushed. `brew install` works.)*
 
 Spec: [`specs/20260806-190127-packaging-and-distribution/spec.md`](specs/20260806-190127-packaging-and-distribution/spec.md) ·
 Decision record: [`research.md` R2](specs/20260806-190127-packaging-and-distribution/research.md) ·
@@ -134,10 +190,14 @@ and publishing a version becomes pushing one annotated `v<MAJOR>.<MINOR>.<PATCH>
 tag. **Nothing the application does changes** — `src/` and `src-tauri/src/` are
 untouched, and the test counts are unmoved at 55 Rust and 30 frontend.
 
-**Not yet live, and deliberately so.** What lands here is the machinery: the
-workflows, the cask template, the single version source, and the how-to. No
-`v1.0.0` exists, this repository is still private, and none of the seven
-credentials is set, so `brew install clintcparker/tap/site-checker` does not
+**Not yet live, and deliberately so.** *(Every claim in this paragraph has since
+been overtaken: the repository is public — see [Repository made
+public](#repository-made-public--2026-08-06) — the cask became a formula, and
+`v1.0.0` shipped. See [Site Checker 1.0.0](#site-checker-100--2026-08-11). It is
+left as written because it was true on 2026-08-06.)* What lands here is the
+machinery: the workflows, the cask template, the single version source, and the
+how-to. No `v1.0.0` exists, this repository is still private, and none of the
+seven credentials is set, so `brew install clintcparker/tap/site-checker` does not
 work today — an unauthenticated fetch of a private release asset returns 404.
 Two decisions that are the maintainer's alone gate the rest: making the
 repository public (which exposes its full history), and a $99/yr Apple Developer
@@ -145,6 +205,11 @@ Program membership for signing and notarization. Until both are answered,
 FR-001, FR-006, FR-015, FR-027 and the runtime half of FR-005 stay deferred, and
 `docs/ROADMAP.md` §2 carries the reduced scope. Read this entry as "the pipeline
 is built and statically proven", not as "packaging shipped".
+*(`docs/ROADMAP.md` is gitignored and so invisible to any reader but the
+maintainer — the reason this entry cites it is itself the problem tracked in
+[#21](https://github.com/clintcparker/site-checker/issues/21). What §2 recorded
+is now public in
+[#20](https://github.com/clintcparker/site-checker/issues/20).)*
 
 Spec: [`specs/20260806-190127-packaging-and-distribution/spec.md`](specs/20260806-190127-packaging-and-distribution/spec.md) ·
 Plan: [`specs/20260806-190127-packaging-and-distribution/plan.md`](specs/20260806-190127-packaging-and-distribution/plan.md) ·
@@ -244,6 +309,10 @@ QA: [`qa/qa-20260806-181800.md`](specs/20260806-120353-concurrency-hardening/qa/
 - Review findings R001 (the source-text lock guard under-covers), R003, and R004
   (`load` accepts duplicate ids) remain open and are still not in `docs/ROADMAP.md`.
   That miss is itself tracked as R005.
+  *(All three were fixed on 2026-08-11 — see "Correctness and coverage from two
+  rounds of unactioned review findings" above. R005, the structural miss, is now
+  [#21](https://github.com/clintcparker/site-checker/issues/21), and open work
+  lives in the issue tracker rather than the gitignored roadmap.)*
 
 ## Concurrency & robustness hardening — 2026-08-06
 

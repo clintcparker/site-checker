@@ -1,6 +1,14 @@
 # Backend — Living Spec
 
 > [DRAFT] Surface-first draft from existing code — every requirement is observed from the code surface unless tagged otherwise. Review before trusting.
+>
+> **Status, 2026-08-11:** still unreviewed, and now tracked as
+> [#23](https://github.com/clintcparker/site-checker/issues/23) rather than sitting here
+> unexplained. Read as a description of what the code *does*, not authority for what it *should*.
+> The "Known deviation" below is a real defect and is now filed as
+> [#22](https://github.com/clintcparker/site-checker/issues/22) — it had been recorded here
+> accurately since the draft was written and never surfaced, which is the whole argument for
+> doing the review.
 
 ## Purpose
 
@@ -44,7 +52,7 @@ Sites SHALL NOT all fire on the same instant merely because they share an interv
 
 A minimum interval SHALL be enforced as a guardrail against hammering an endpoint. Raising a too-small value to the floor is the only correction — a value at or above the floor is never altered. This is a property of *what gets scheduled*, not merely of what the UI submits: any interval that reaches the scheduler MUST already respect the floor, whatever its source.
 
-> **Known deviation.** The floor is applied only when a site is added or updated through the command surface. Sites loaded from the saved file at startup are scheduled with whatever interval that file contains, so a hand-edited or corrupted `interval_secs: 0` polls with no delay between requests. The requirement above states the intent; the load path does not yet meet it.
+> **Known deviation — filed as [#22](https://github.com/clintcparker/site-checker/issues/22) on 2026-08-11.** The floor is applied only when a site is added or updated through the command surface. Sites loaded from the saved file at startup are scheduled with whatever interval that file contains, so a hand-edited or corrupted `interval_secs: 0` polls with no delay between requests. The requirement above states the intent; the load path does not yet meet it. *(Verified still true at `e0fe375`: `clamp_interval` is called only from `commands.rs:50` and `commands.rs:114`; `store.rs`'s `load` post-processes only for duplicate ids, and `engine.rs`'s `run_site` collapses both the startup jitter and the per-cycle sleep to zero. Same defect shape as the duplicate-id bug — enforced on add/update, absent on load.)*
 
 #### Scenario: a saved site carries an interval below the floor
 - **WHEN** the stored site list contains an interval under the floor
