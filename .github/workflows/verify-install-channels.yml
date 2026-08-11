@@ -19,6 +19,14 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # `types: [completed]` fires on failure as much as success. Without this a
+    # Release that died before publishing — a red `test` or `build`, the common
+    # case — still ran this workflow against the *previous* release, which then
+    # passed and let `e2e` spend a macOS runner re-verifying something nothing
+    # had touched.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     outputs:
       version: ${{ steps.latest.outputs.version }}
     steps:
@@ -38,9 +46,9 @@ jobs:
           echo "version=$L" >> "$GITHUB_OUTPUT"
           echo "Latest v* release: $TAG (version $L)"
 
-      # No retry loop. name-on retries here to absorb NuGet indexing lag; GitHub
-      # release assets and raw.githubusercontent.com have no equivalent lag, so a
-      # retry would only delay a genuine failure.
+      # No retry loop on the release assets: they are attached before this ever
+      # runs and have no indexing lag to absorb, so a retry would only delay a
+      # genuine failure. The tap check below is a different story — see there.
       - name: Release assets exist (2/2)
         env:
           TAG: ${{ steps.latest.outputs.tag }}
@@ -48,7 +56,7 @@ jobs:
           fail=0
           for arch in aarch64 x86_64; do
             asset="site-checker-${arch}-apple-darwin.zip"
-            url="https://github.com/clintcparker/site-checker/releases/download/${TAG}/${asset}"
+            url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${asset}"
             if curl -sfIL -o /dev/null "$url"; then
               echo "OK   $asset"
             else
@@ -58,56 +66,134 @@ jobs:
           done
           exit $fail
 
-      - name: Tap cask matches the version
+      # Read through the Contents API rather than raw.githubusercontent.com.
+      # raw *is* CDN-cached — measured at max-age=300 against this very tap — and
+      # `workflow_run` fires seconds after the tap push, so reading raw here can
+      # fail a perfectly good release against a copy up to five minutes stale.
+      # The earlier claim that raw has "no equivalent lag" was simply wrong.
+      #
+      # Both dimensions are checked, because version and checksums fail
+      # independently. A run where `release` succeeded and `homebrew` did not
+      # leaves a tap whose version and URLs are correct and whose checksums point
+      # at bytes that no longer exist — and since a re-run rebuilds and Tauri
+      # builds are not bit-reproducible, that is the state a partial re-run
+      # actually produces. Version-only verification is green while
+      # `brew install` aborts on a SHA256 mismatch.
+      - name: Tap formula matches the release, by version and by bytes
         env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.latest.outputs.tag }}
           L: ${{ steps.latest.outputs.version }}
         run: |
-          cask=$(curl -fsSL "https://raw.githubusercontent.com/clintcparker/homebrew-tap/main/Casks/site-checker.rb") || {
-            echo "::error::could not fetch Casks/site-checker.rb from clintcparker/homebrew-tap"
+          formula=$(gh api repos/clintcparker/homebrew-tap/contents/Formula/site-checker.rb \
+            -H "Accept: application/vnd.github.raw") || {
+            echo "::error::could not fetch Formula/site-checker.rb from clintcparker/homebrew-tap"
             exit 1
           }
-          if echo "$cask" | grep -qF "version \"$L\""; then
-            echo "OK   tap cask is at $L"
+
+          fail=0
+          if echo "$formula" | grep -qF "version \"$L\""; then
+            echo "OK   tap formula is at $L"
           else
-            echo "::error::tap cask does not contain: version \"$L\" — the tap is lagging the latest release"
-            exit 1
+            echo "::error::tap formula does not contain: version \"$L\" — the tap is lagging the latest release"
+            fail=1
           fi
 
+          for arch in aarch64 x86_64; do
+            url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/site-checker-${arch}-apple-darwin.zip"
+            got=$(curl -sfL "$url" | sha256sum | cut -d' ' -f1)
+            if [ -z "$got" ]; then
+              echo "::error::could not download $url to checksum it"
+              fail=1
+            elif echo "$formula" | grep -qF "$got"; then
+              echo "OK   tap sha256 for $arch matches the published asset"
+            else
+              echo "::error::tap formula's sha256 for $arch does not match the bytes attached to $TAG — brew install would abort on a checksum mismatch"
+              fail=1
+            fi
+          done
+          exit $fail
+
   # A macOS runner performing a real install is the most expensive thing in this
-  # feature, and what it catches — a signing or notarization problem — cannot
-  # appear between releases without something else having changed. So it runs
-  # after a release and on demand, but not on the daily cron; steps 1-3 above are
-  # what bound the rot-detection window at 24 hours.
+  # feature, and what it catches — a broken or unsealed bundle — cannot appear
+  # between releases without something else having changed. So it runs after a
+  # release and on demand, but not on the daily cron; steps 1-3 above are what
+  # bound the rot-detection window at 24 hours. The workflow_run guard is
+  # repeated here rather than inherited: `needs:` alone would still let this run
+  # after a failed Release, and this is the job that costs.
   e2e:
     needs: verify
     runs-on: macos-latest
-    if: github.event_name != 'schedule'
+    if: >-
+      github.event_name != 'schedule' &&
+      (github.event_name != 'workflow_run' ||
+       github.event.workflow_run.conclusion == 'success')
     env:
       L: ${{ needs.verify.outputs.version }}
     steps:
       - name: Install from the tap
         run: brew install clintcparker/tap/site-checker
 
-      - name: Gatekeeper accepts the installed app
+      - name: The installed bundle is unquarantined and sealed
         run: |
-          out=$(spctl -a -t exec -vv "/Applications/Site Checker.app" 2>&1)
-          echo "$out"
-          case "$out" in
-            *accepted*) ;;
-            *) echo "::error::spctl did not accept the installed app"; exit 1 ;;
-          esac
-          case "$out" in
-            *"source=Notarized Developer ID"*) echo "OK   notarized Developer ID" ;;
-            *) echo "::error::installed app is not notarized — expected source=Notarized Developer ID"; exit 1 ;;
-          esac
+          APP="$(brew --prefix site-checker)/libexec/Site Checker.app"
+          test -d "$APP" || { echo "::error::no bundle at $APP"; exit 1; }
+
+          # The premise of shipping a formula rather than a cask, asserted
+          # instead of assumed. A cask would have set com.apple.quarantine here,
+          # and an ad-hoc-signed bundle carrying it opens as "damaged". If this
+          # ever fires, the whole distribution choice needs revisiting.
+          if xattr -p com.apple.quarantine "$APP" >/dev/null 2>&1; then
+            echo "::error::installed bundle carries com.apple.quarantine — the formula channel is not behaving as designed"
+            exit 1
+          fi
+          echo "OK   no com.apple.quarantine"
+
+          # FR-021 as amended. There is no Developer ID, so `spctl -a -t exec`
+          # cannot pass and asserting it would only ever fail. What remains
+          # checkable is that the bundle is internally consistent: a signature is
+          # present and every sealed resource still matches it. That is what
+          # catches Homebrew's extract-and-clean path quietly modifying the
+          # bundle after release.yml signed it.
+          codesign --verify --strict --verbose=2 "$APP" || {
+            echo "::error::codesign could not verify the installed bundle"
+            exit 1
+          }
+          codesign -dv "$APP" 2>&1 | grep -q '^Signature=adhoc' || {
+            echo "::error::installed bundle is not ad-hoc signed as released"
+            exit 1
+          }
+          echo "OK   ad-hoc signature verifies"
+
+      - name: The wrapper is installed and executable
+        run: |
+          command -v site-checker >/dev/null || {
+            echo "::error::the site-checker launcher is not on PATH"
+            exit 1
+          }
+          test -x "$(command -v site-checker)" || {
+            echo "::error::the site-checker launcher is not executable"
+            exit 1
+          }
+          echo "OK   site-checker launcher present"
 
       - name: Installed app reports the released version
         run: |
           got=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
-            "/Applications/Site Checker.app/Contents/Info.plist")
+            "$(brew --prefix site-checker)/libexec/Site Checker.app/Contents/Info.plist")
           echo "CFBundleShortVersionString → $got"
           if [ "$got" != "$L" ]; then
             echo "::error::installed app reports '$got', expected $L"
             exit 1
           fi
           echo "OK   installed app reports $L"
+
+      # Non-gating on purpose, for now. `brew audit` cannot be run on the
+      # maintainer's machine — it installs a vendored gem bundle and has already
+      # broken Homebrew there once — so a throwaway runner is the right place for
+      # it, and a third-party binary formula may well trip style rules that do
+      # not matter here. Read the output, fix what is real, and only then
+      # consider making it a gate.
+      - name: Formula audit (non-gating)
+        continue-on-error: true
+        run: brew audit --formula --new clintcparker/tap/site-checker

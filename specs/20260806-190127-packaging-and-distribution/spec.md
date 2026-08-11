@@ -239,25 +239,36 @@ have them perform a release using only it.
 - **FR-001**: Site Checker MUST be installable on macOS with the single documented command
   `brew install clintcparker/tap/site-checker`, requiring no source checkout and no
   language toolchain.
-- **FR-002**: The published install entry MUST be a macOS application-bundle installation
-  (a cask), not a command-line-binary formula, while keeping the advertised install command
-  above unchanged.
-- **FR-003**: The install entry MUST support uninstalling the application, and MUST
-  additionally offer a data-removing uninstall that also deletes the application's stored
-  data directory (`~/Library/Application Support/com.clintparker.site-checker`, which
-  contains `sites.json`).
+- **FR-002**: The published install entry MUST install the macOS **application bundle** —
+  not a command-line binary — while keeping the advertised install command above unchanged.
+  **Amended 2026-08-11.** This previously required a *cask* specifically. That is now
+  unsatisfiable at acceptable cost: casks quarantine unconditionally (see `research.md` R2's
+  decision record), so a cask forces the $99/yr membership FR-006 no longer assumes. The
+  requirement's intent — ship the app, not a CLI, behind one unchanged command — is
+  preserved; the mechanism is a formula.
+- **FR-003**: The install entry MUST support uninstalling the application, and the project
+  MUST document how to remove the application's stored data directory
+  (`~/Library/Application Support/com.clintparker.site-checker`, which contains
+  `sites.json`).
+  **Amended 2026-08-11.** This previously required the install entry itself to *offer* a
+  data-removing uninstall. `zap` is a cask stanza with no formula equivalent —
+  `brew uninstall --zap` on a formula exits 0 having done nothing — so the capability does
+  not exist to deliver. It degrades to documentation, in the README and in the formula's
+  `caveats`. Recorded as a deliberate loss, not an oversight.
 - **FR-004**: The plain uninstall MUST leave the stored site list in place, so a
-  re-install restores the user's sites.
+  re-install restores the user's sites. **Now satisfied by construction:** a formula never
+  touches the data directory under any flag.
 - **FR-005**: Every published version MUST be installable and natively runnable on both
   Apple Silicon and Intel Macs.
 - **FR-006**: A freshly installed copy MUST open on a machine other than the one that built
   it without the operating system reporting it as damaged or blocking it.
-  **Resolved at plan time** (see `research.md` R2): full Developer ID signing with the
-  hardened runtime, plus notarization and stapling. The quarantine-bypass alternative is
-  ruled out by FR-021, whose `spctl -a -t exec` check cannot pass on an ad-hoc-signed
-  bundle regardless of quarantine state. This requires an Apple Developer Program
-  membership ($99/yr) that the project does not have today — the one line item in this
-  feature that costs money, and the only one needing the user's go-ahead before Phase A.
+  **Resolved 2026-08-11** (see `research.md` R2's decision record), reversing the plan-time
+  answer. There is no Apple Developer Program membership and no notarization. The
+  requirement is met by shipping a **formula**, which never sets `com.apple.quarantine` —
+  so Gatekeeper never evaluates the bundle and never reports it as damaged. The plan-time
+  answer assumed the alternative was `quarantine: false` in a cask; that stanza does not
+  exist in current Homebrew, which is what forced the channel change rather than the
+  cheaper fix.
 
 **Release by tag (US2)**
 
@@ -301,11 +312,22 @@ have them perform a release using only it.
 - **FR-019**: A verification pass MUST run on a schedule, automatically after each release,
   and on demand.
 - **FR-020**: Verification MUST resolve the latest published version, confirm every
-  artifact the install channel references is downloadable, and confirm the install channel
-  advertises that same version — failing when any channel lags.
+  artifact the install channel references is downloadable, confirm the install channel
+  advertises that same version, **and confirm the channel's recorded checksums match the
+  bytes actually published** — failing when any channel lags or diverges. (The checksum
+  clause was added 2026-08-11, closing review finding R001: version and URL can both be
+  correct while the checksums are stale, which is exactly the state a partial re-run
+  leaves, and `brew install` aborts on it while verification stayed green.)
 - **FR-021**: Verification MUST include an end-to-end step that installs the application on
-  a clean macOS environment the same way a user would and confirms the operating system
-  accepts the installed application for execution.
+  a clean macOS environment the same way a user would, and confirms the installed bundle is
+  **not quarantined** and that its **signature verifies**.
+  **Amended 2026-08-11.** This previously required confirming "the operating system accepts
+  the installed application for execution" — in practice `spctl -a -t exec`, which cannot
+  pass without a Developer ID and would therefore only ever fail. The two clauses above are
+  what remains checkable: the quarantine assertion is the premise of choosing a formula,
+  made machine-checked rather than assumed, and `codesign --verify --strict` catches the
+  install path modifying a bundle that CI sealed. It is a real check of a strictly weaker
+  property, and the loss of provenance is recorded in `docs/ROADMAP.md`.
 
 **Continuous integration (US5)**
 
@@ -416,9 +438,14 @@ change what "shipped" requires, not merely how it is built:
   gates named in FR-022, with no local action by the author.
 - **SC-009**: No automated build hangs waiting for desktop interaction; every release and
   CI run reaches a definite pass or fail without human intervention.
-- **SC-010**: Uninstalling with the data-removal option leaves no application data on
-  disk; uninstalling without it leaves the user's site list fully intact and restorable by
-  re-installing.
+- **SC-010**: Uninstalling leaves the user's site list fully intact and restorable by
+  re-installing, and the documented data-removal command leaves no application data on disk.
+  **Amended 2026-08-11**, following FR-003: there is no data-removal *option* on a formula
+  to measure, so the first clause is now unconditional and the second is measured against
+  the documented `rm -rf`. Review finding R009 — that the cask's `zap trash:` moved data to
+  the Trash rather than deleting it, so "leaves no application data on disk" was not
+  literally met until the Trash was emptied — is moot: nothing moves anything to the Trash
+  any more.
 - **SC-011**: A maintainer who has never released this project can complete a release using
   only the written procedure.
 - **SC-012**: No project document states a bundle size, or any other published expectation,
