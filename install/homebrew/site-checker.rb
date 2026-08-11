@@ -50,8 +50,29 @@ class SiteChecker < Formula
   # chmodding what it finds, but calls Find.prune at libexec — so nothing inside
   # the bundle is touched and the ad-hoc signature applied during the release
   # stays sealed. `brew test` below is what would catch that changing.
+  #
+  # The two branches are not defensive padding — the first is the live path.
+  # Homebrew stages an archive by extracting it and then, when exactly one
+  # top-level entry remains and it is a directory, chdir-ing *into* it
+  # (AbstractDownloadStrategy#chdir). Ours always leaves exactly one:
+  # `ditto --keepParent` puts "Site Checker.app" at the archive root, and the zip
+  # strategy deletes the sibling __MACOSX before the count is taken. So `install`
+  # runs *inside* the bundle, and naming it would look for a nested copy of
+  # itself — which is exactly how the first throwaway release failed, with
+  # "Errno::ENOENT: No such file or directory - Site Checker.app".
+  #
+  # The second branch stays because the chdir is Homebrew's behaviour, not ours:
+  # an archive that ever gains a second top-level entry stages *beside* the
+  # bundle instead, and should install rather than fail.
   def install
-    libexec.install "Site Checker.app"
+    staged = Pathname.pwd
+    if staged.basename.to_s == "Site Checker.app"
+      # `children`, not Dir["*"] — it includes dotfiles, and silently dropping
+      # one out of a signed bundle would break the seal rather than the install.
+      (libexec/"Site Checker.app").install staged.children
+    else
+      libexec.install "Site Checker.app"
+    end
     (bin/"site-checker").write <<~SH
       #!/bin/bash
       exec /usr/bin/open -a "#{opt_libexec}/Site Checker.app"
