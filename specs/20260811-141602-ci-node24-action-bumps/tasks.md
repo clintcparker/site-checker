@@ -68,7 +68,7 @@ All target majors require Actions runner ≥ 2.327.1. Every job in this repo run
 
 **Purpose**: Freeze the audit so the edits below can be checked against something.
 
-- [X] T001 Re-run the pin inventory with `grep -rn "uses:" .github/workflows/` and confirm it still matches the audit baseline table in `specs/20260811-141602-ci-node24-action-bumps/tasks.md` (7 distinct actions, 20 `uses:` lines across `ci.yml` and `release.yml`)
+- [X] T001 Re-run the pin inventory with `grep -rn "uses:" .github/workflows/` and confirm it still matches the audit baseline table in `specs/20260811-141602-ci-node24-action-bumps/tasks.md` (8 distinct actions, 20 `uses:` lines across `ci.yml` and `release.yml`) — the count read "7 distinct actions" until 2026-08-12; the baseline table above it has always listed 8, and `grep -rn "uses:" .github/workflows/` confirms 8. The 20-line count was always correct.
 
 ---
 
@@ -152,7 +152,7 @@ under the repository's Dependabot "Last checked" status for the `github-actions`
 deferred.
 
 - [X] T016 [P] [US3] Create `.github/dependabot.yml` with a `package-ecosystem: "github-actions"` entry at `directory: "/"` on a `weekly` schedule, so action majors are proposed as PRs instead of accumulating silently
-- [ ] T017 [US3] Confirm Dependabot accepted the config via `gh api repos/clintcparker/site-checker/dependabot/alerts` or the repository's Insights → Dependency graph → Dependabot tab, and that no parse error is reported against the new file
+- [X] T017 [US3] Confirm Dependabot accepted the config via `gh api repos/clintcparker/site-checker/dependabot/alerts` or the repository's Insights → Dependency graph → Dependabot tab, and that no parse error is reported against the new file — **closed with a defect, 2026-08-12**. Dependabot accepted the file and reported no parse error, and that turned out to be the problem rather than the reassurance: the `ignore:` block's `8.x`-style values parse as *versions*, not ranges, in the github-actions ecosystem's Gem requirement grammar, so all four entries compiled to equalities against versions that will never exist and matched nothing. Proven in production — Dependabot opened [PR #28](https://github.com/clintcparker/site-checker/pull/28) 64 seconds after the config landed on `main`, proposing all four majors the file declined, and it merged. The values are now bare integers, which match the bare major tag Dependabot reports. See [review-20260812-110430.md](reviews/review-20260812-110430.md) R001. Re-verification that the corrected form holds requires one more weekly Dependabot cycle on `main` and is the one thing still outstanding on US3.
 
 ---
 
@@ -160,7 +160,7 @@ deferred.
 
 - [X] T018 [P] Record the "pin actions to majors that run on the current Node runtime" convention alongside the existing CI reasoning comments at the top of `.github/workflows/ci.yml`, matching the file's existing explain-the-why comment style
 - [X] T019 [P] Note in `docs/how-to/release.md` that `release.yml` action pins are now Node 24 and that a runner-version floor of 2.327.1 applies, so a future self-hosted runner is not introduced unknowingly — **first confirm this file is tracked**, since `docs/` is gitignored except `how-to/`
-- [ ] T020 Re-read the annotations on the newest `CI` run on `main` after merge and confirm an empty annotation list, closing out the report that started this feature
+- [X] T020 Re-read the annotations on the newest `CI` run on `main` after merge and confirm an empty annotation list, closing out the report that started this feature — **confirmed twice**: run [31544064523](https://github.com/clintcparker/site-checker/actions/runs/31544064523) at `88ad5c6` (the merge itself) and run [31544339526](https://github.com/clintcparker/site-checker/actions/runs/31544339526) at `457f572` (after PR #28 moved four pins) both concluded `success` on `rust` and `frontend` with both annotation lists returning `[]`. The warning that started this feature is gone from `main` and stayed gone across the pin change.
 
 ---
 
@@ -207,14 +207,34 @@ without blocking anything.
 
 ## Deliberately Out of Scope
 
-- `Swatinem/rust-cache@v2` and `dtolnay/rust-toolchain@stable` — already compliant.
-- `.github/workflows/verify-install-channels.yml` — contains no actions.
+> **Four of these were crossed anyway — updated 2026-08-12.** The entries below are this feature's
+> scope decision and remain the record of what was evaluated and declined. They are **not** a
+> description of `main`. [PR #28](https://github.com/clintcparker/site-checker/pull/28), a Dependabot
+> group bump opened 64 seconds after PR #27 merged and merged three minutes later, moved the tree onto
+> `checkout@v7`, `setup-node@v7`, `upload-artifact@v7`, and `download-artifact@v8` — every major the
+> last two bullets decline. It was only proposed because `.github/dependabot.yml`'s `ignore:` syntax
+> was inert (see T017). The bump was kept rather than reverted. `ci.yml`'s comment block now carries
+> the per-major evaluation that should have preceded it, and the one real behavior change —
+> `download-artifact@v8` defaulting `digest-mismatch` to `error` — is pinned back to `warn` on the
+> `release` job. Read the bullets below as history, and `.github/workflows/` as the current state.
+
+- `Swatinem/rust-cache@v2` and `dtolnay/rust-toolchain@stable` — already compliant. *(Still true.)*
+- `.github/workflows/verify-install-channels.yml` — contains no actions. *(Still true.)*
 - `actions/download-artifact@v8` and `actions/upload-artifact@v7` — the newest majors, skipped
   because v8 turns digest mismatches into hard failures and changes decompression. Revisit only if
-  direct-upload behavior is wanted.
+  direct-upload behavior is wanted. — **Superseded.** Both are on `main`. v8's decompression change
+  turned out to be narrower than this bullet implies: it skips unzipping only for content whose
+  `Content-Type` is not a zip, and `skip-decompress` defaults to `false`, so the `release` job's
+  `artifacts/site-checker-<arch>/…` globs still resolve. The digest default is real and is pinned
+  back to `warn` at `release.yml`. `upload-artifact@v7`'s direct upload is opt-in (`archive` defaults
+  to `true`).
 - `actions/checkout@v6`/`@v7` and `actions/setup-node@v7` — newer than the chosen targets. Chosen
   targets already resolve the warning; jumping further adds behavior changes this feature has no
-  reason to absorb.
+  reason to absorb. — **Superseded.** Both are on `main`. Evaluated after the fact and inert here:
+  `checkout@v7`'s fork-PR block only fires on `pull_request_target`/`workflow_run`, which no workflow
+  in this repo uses, and the `homebrew` job pushes with `TAP_PUSH_TOKEN` rather than a persisted
+  checkout credential; `setup-node@v7` inherits v6's npm-only caching narrowing, which all three call
+  sites bypass by passing `cache: pnpm` explicitly.
 
 ---
 
@@ -252,7 +272,18 @@ Input compatibility was checked the same way, at the target ref:
 `gh api repos/clintcparker/site-checker/actions/runners` returns `total_count: 0` — no self-hosted
 runners, so the ≥ 2.327.1 runner floor is satisfied by every job (T002).
 
-### Why four tasks remain open
+### Why four tasks remained open (updated 2026-08-12 — one still is)
+
+Recorded before merge; three of the four have since closed. **T007** closed during ship on PR #27's
+first `CI` run. **T020** closed post-merge, confirmed on two separate `main` runs. **T017** closed
+with a defect — it found that the `ignore:` block was inert, which is exactly the failure it existed
+to catch, except that it ran a day late and Dependabot found it first. **T015 is the one that is
+still genuinely open**, and PR #28 raised its stakes: the release path is now two majors past the
+set that was evaluated for it, and `download-artifact@v8`'s hard-fail digest default has been pinned
+back to `warn` by inspection, not by a run. See
+[review-20260812-110430.md](reviews/review-20260812-110430.md).
+
+The original note follows.
 
 These four cannot be closed from a local checkout. They are not skipped — they are blocked on
 something that has to happen on GitHub first.
