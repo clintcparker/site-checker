@@ -33,3 +33,21 @@ The full committed diff is `.github/dependabot.yml`, `.github/workflows/ci.yml`,
 No `manifest.json` exists to reuse: the `before` pass skipped rather than capturing, so it never wrote one. Nothing about the app's state needed to be reproduced.
 
 As in the `before` pass, the app was never launched and `sites.json` was never seeded, backed up, or restored — the decision needed no running app, so the user's real data file was never at risk.
+
+## Re-verification (unattended run, mode `before`, target `main`, post-merge)
+
+This `before` run was invoked after the feature had already merged — PR #27 landed at `88ad5c6`, and `main` has since advanced to `457f572` (PR #28, an unrelated Dependabot Actions bump). A baseline is therefore not merely unnecessary here but unobtainable from the checkout as it stands: `main`'s tip *is* the after state, so any capture taken now would document the post-implementation UI, not a pre-implementation one. The skip stands on its own merits regardless, so no throwaway worktree was built at the pre-implementation SHA.
+
+The decision was re-checked against the full merged range rather than the working tree. The merge-base of PR #27 is `b64c0e2`:
+
+- `git diff --name-only b64c0e2..903d524 -- src index.html src-tauri/tauri.conf.json` → empty
+- `git diff --name-only b64c0e2..457f572 -- src src-tauri index.html` → empty (widened to all of `src-tauri/`, and extended through the current `main` tip)
+- `git status --porcelain -- src src-tauri index.html` → empty
+- Full non-`specs/` diff for the range: `.github/dependabot.yml`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `CHANGELOG.md`, `docs/how-to/release.md`
+
+Two process notes for whoever reads this next:
+
+- `.specify/scripts/bash/check-prerequisites.sh --json` hard-fails on this feature (`ERROR: plan.md not found`), because the feature deliberately bypassed `/speckit-specify` and `/speckit-plan`. `FEATURE_DIR` was read from `.specify/feature.json` instead, and UI-relevance judged from `tasks.md` as in the original `before` pass.
+- Commit `c51c1aa` on branch `20260811-141602-ci-node24-action-bumps` carries an earlier draft of this same note and is **not** an ancestor of `main`; it never merged. This section supersedes it, on `main`, where the rest of the feature's artifacts live.
+
+No app launch, no `sites.json` seeding, no backup, no restore — same as both prior passes.
