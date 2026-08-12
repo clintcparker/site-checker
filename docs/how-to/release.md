@@ -122,8 +122,8 @@ Channels** run, not by a fast pre-flight message.
 ## The runner floor release.yml assumes
 
 Every JS action in `release.yml` is pinned to a major that runs on **Node 24** —
-`actions/checkout@v5`, `actions/setup-node@v6`, `pnpm/action-setup@v6`,
-`actions/upload-artifact@v6`, `actions/download-artifact@v7`,
+`actions/checkout@v7`, `actions/setup-node@v7`, `pnpm/action-setup@v6`,
+`actions/upload-artifact@v7`, `actions/download-artifact@v8`,
 `softprops/action-gh-release@v3`. Those majors require **Actions runner
 ≥ 2.327.1**.
 
@@ -136,6 +136,34 @@ version before moving a release job off GitHub-hosted.
 
 `Swatinem/rust-cache@v2` is already Node 24 and `dtolnay/rust-toolchain@stable`
 is a composite action with no JS runtime, so neither is pinned for this reason.
+
+### One of those pins is not the one that was evaluated
+
+The Node 24 work (PR #27) chose the *lowest* major on node24 for each action, to
+avoid absorbing behavior changes this repo has no reason to take on. It landed
+at `checkout@v5`, `setup-node@v6`, `upload-artifact@v6`, `download-artifact@v7`.
+PR #28 — a Dependabot group bump, opened 64 seconds after that merge and merged
+three minutes after it opened — moved all four up
+to the versions listed above. It should never have been proposed: those exact
+majors are listed as declined in `.github/dependabot.yml`, and it was only
+proposed because that file's ignore syntax was inert. The syntax is fixed; the
+bump was kept.
+
+Three of the four are inert here. `download-artifact@v8` is not: it changed the
+default for `digest-mismatch` from a logged warning to a hard failure. The
+`release` job pins it back to `warn` explicitly, because a mismatch on an
+artifact this same run produced minutes ago is a transport problem, and failing
+mid-release leaves the tag pushed with no release object attached — worse than
+publishing and re-running. If you ever want the strict behavior, delete that
+input; the failure it produces is a red `release` job on a tag that already
+exists, which is recoverable by re-running from the same tag.
+
+The other two v8 changes are **not** regressions and were checked at `action.yml`
+rather than assumed: `merge-multiple` still defaults to `false` and
+`skip-decompress` to `false`, so artifacts still arrive unpacked at
+`artifacts/site-checker-<arch>/…` and the `files:` globs in the `release` job
+still resolve. `upload-artifact@v7`'s new direct-upload path is opt-in
+(`archive` defaults to `true`), so the zip container is unchanged.
 
 ## Re-running a failed release
 
