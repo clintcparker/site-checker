@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::path::PathBuf;
 
-use crate::model::Site;
+use crate::model::{clamp_interval, Site, MIN_INTERVAL_SECS};
 
 pub struct Store {
     path: PathBuf,
@@ -72,16 +72,28 @@ pub fn load(path: PathBuf) -> LoadOutcome {
     match serde_json::from_str::<Vec<Site>>(&raw) {
         Ok(sites) => {
             let (sites, dropped) = drop_duplicate_ids(sites);
+            let (sites, clamped) = clamp_intervals(sites);
+
+            let mut warnings: Vec<String> = Vec::new();
+            if dropped > 0 {
+                warnings.push(format!(
+                    "sites.json held {dropped} entr{} sharing an id with an earlier one. \
+                     The first of each was kept and the rest ignored; the existing file \
+                     has been left alone.",
+                    if dropped == 1 { "y" } else { "ies" }
+                ));
+            }
+            if clamped > 0 {
+                warnings.push(format!(
+                    "{clamped} entr{} in sites.json had an interval_secs below the minimum \
+                     ({MIN_INTERVAL_SECS}s) and {} been raised to the floor.",
+                    if clamped == 1 { "y" } else { "ies" },
+                    if clamped == 1 { "has" } else { "have" },
+                ));
+            }
             LoadOutcome {
                 store: Store { path, sites },
-                warning: (dropped > 0).then(|| {
-                    format!(
-                        "sites.json held {dropped} entr{} sharing an id with an earlier one. \
-                         The first of each was kept and the rest ignored; the existing file \
-                         has been left alone.",
-                        if dropped == 1 { "y" } else { "ies" }
-                    )
-                }),
+                warning: if warnings.is_empty() { None } else { Some(warnings.join(" ")) },
             }
         }
         Err(e) => LoadOutcome {
@@ -92,6 +104,30 @@ pub fn load(path: PathBuf) -> LoadOutcome {
             )),
         },
     }
+}
+
+/// Raise every site whose `interval_secs` is below the floor up to it, and report
+/// how many were adjusted.
+///
+/// `add_site` and `update_site` apply `clamp_interval` on the command surface, but a
+/// hand-edited, restored, or synced `sites.json` bypasses that path. Enforcing the
+/// floor here means it holds for every `Store` regardless of origin, which is what
+/// the requirement asks for: the floor is a property of *what gets scheduled*, not
+/// of what the UI submits.
+fn clamp_intervals(sites: Vec<Site>) -> (Vec<Site>, usize) {
+    let mut clamped = 0usize;
+    let sites = sites
+        .into_iter()
+        .map(|mut s| {
+            let floored = clamp_interval(s.interval_secs);
+            if floored != s.interval_secs {
+                s.interval_secs = floored;
+                clamped += 1;
+            }
+            s
+        })
+        .collect();
+    (sites, clamped)
 }
 
 /// Keep the first entry for each id, and report how many later ones were dropped.
@@ -712,6 +748,85 @@ mod tests {
             ])
             .unwrap(),
             "and the file is left alone, so the discarded entry is recoverable by hand"
+        );
+    }
+
+    /// A site with `interval_secs: 0` in `sites.json` must be raised to the
+    /// floor and a warning emitted, so it cannot poll in a tight loop.
+    ///
+    /// This is the load-path parallel to the command-surface guard in `add_site`
+    /// and `update_site`. A hand-edited or restored file can set any value; the
+    /// floor must hold regardless of origin, not only for values that came through
+    /// the UI.
+    #[test]
+    fn load_clamps_an_interval_below_the_floor_and_warns() {
+        use crate::model::MIN_INTERVAL_SECS;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sites.json");
+        let mut zero_interval = a_site("one");
+        zero_interval.interval_secs = 0;
+        std::fs::write(&path, serde_json::to_string(&[zero_interval]).unwrap()).unwrap();
+
+        let outcome = load(path);
+
+        assert_eq!(
+            outcome.store.list()[0].interval_secs,
+            MIN_INTERVAL_SECS,
+            "a zero interval must be raised to the floor, not scheduled as-is"
+        );
+        assert!(
+            outcome.warning.is_some(),
+            "the clamping must be surfaced as a warning so the user knows the file was adjusted"
+        );
+    }
+
+    /// The anti-test: a file where every interval is valid must produce no warning
+    /// on load. Without this, `load_clamps_an_interval_below_the_floor_and_warns`
+    /// could pass against an implementation that always warns.
+    #[test]
+    fn load_warns_about_nothing_when_all_intervals_are_at_or_above_the_floor() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sites.json");
+        std::fs::write(
+            &path,
+            serde_json::to_string(&[a_site("one"), a_site("two")]).unwrap(),
+        )
+        .unwrap();
+
+        let outcome = load(path);
+
+        assert_eq!(outcome.store.list().len(), 2);
+        assert!(outcome.warning.is_none());
+    }
+
+    /// Both defects at once: duplicate ids AND a below-floor interval. Both must
+    /// be corrected and both must be reported in a single warning string.
+    #[test]
+    fn load_combines_duplicate_and_interval_warnings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sites.json");
+        let mut zero_interval = a_site("one");
+        zero_interval.interval_secs = 0;
+        let clash = Site { url: "https://second.example.com".to_string(), ..a_site("one") };
+        std::fs::write(
+            &path,
+            serde_json::to_string(&[zero_interval, clash]).unwrap(),
+        )
+        .unwrap();
+
+        let outcome = load(path);
+
+        assert_eq!(outcome.store.list().len(), 1, "duplicate must be dropped");
+        assert_eq!(
+            outcome.store.list()[0].interval_secs,
+            crate::model::MIN_INTERVAL_SECS,
+            "interval must be raised to the floor"
+        );
+        let warning = outcome.warning.expect("both defects must produce a warning");
+        assert!(
+            warning.contains("interval") || warning.contains("minimum"),
+            "warning must mention the interval clamp"
         );
     }
 
