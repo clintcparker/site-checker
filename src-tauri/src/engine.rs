@@ -6,7 +6,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::check::{build_client, check_url};
 use crate::lock::{self, SharedStore};
-use crate::model::{Method, Site, StatusEvent};
+use crate::model::{clamp_interval, Method, Site, StatusEvent};
 
 /// Upper bound on the startup offset. Keeps N sites on a shared interval from
 /// all firing on the same second without delaying the first result much.
@@ -88,14 +88,20 @@ impl Engine {
 
 impl Inner {
     async fn run_site(&self, site: Site) {
+        // The floor is enforced on the command surface (add_site, update_site) and
+        // again on load, but belt-and-braces here means it holds regardless of how
+        // the site reached the scheduler — hand-edited files, future importers,
+        // test harnesses — without every caller having to remember to clamp first.
+        let interval_secs = clamp_interval(site.interval_secs);
+
         // The offset is applied once, before the first check. Because the loop
         // sleeps a full interval after each check, every subsequent check keeps
         // the same offset.
-        let jitter_ceiling_ms = site.interval_secs.min(MAX_JITTER_SECS) * 1000;
+        let jitter_ceiling_ms = interval_secs.min(MAX_JITTER_SECS) * 1000;
         let jitter_ms = rand::random_range(0..=jitter_ceiling_ms);
         tokio::time::sleep(Duration::from_millis(jitter_ms)).await;
 
-        let interval = Duration::from_secs(site.interval_secs);
+        let interval = Duration::from_secs(interval_secs);
         let mut method_override = site.method_override;
 
         loop {
