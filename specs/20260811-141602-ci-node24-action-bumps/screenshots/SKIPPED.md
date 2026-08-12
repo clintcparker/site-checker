@@ -91,3 +91,37 @@ The app was not launched and did not need to be, so its build/start health is
 untested by this run and this file should not be read as evidence either way.
 `sites.json` was never seeded, backed up, or restored — the user's real data file
 was never at risk, in this pass or any prior one.
+
+## Re-verification (unattended run, mode `after`, target `main`, branch `20260812-113500-dependabot-ignore-syntax-fix`)
+
+The skip stands. This is the first pass on this feature where the merge-base check
+is **non-trivially** meaningful: the run happened on branch
+`20260812-113500-dependabot-ignore-syntax-fix` at `c6f4396`, whose merge-base with
+`main` is `1e3bc88` — a genuinely earlier commit, not `HEAD` itself. Every prior
+`after` pass ran with branch == target == `main`, where the committed diff was
+empty for structural reasons and proved nothing.
+
+- `git diff --name-only 1e3bc88..HEAD -- src index.html src-tauri/tauri.conf.json` → empty
+- `git diff --name-only 1e3bc88..HEAD -- src src-tauri index.html` → empty (widened to all of `src-tauri/`)
+- `git diff --name-only b64c0e2..HEAD -- src src-tauri index.html` → empty (feature merge-base through current tip)
+- `git status --porcelain -- src src-tauri index.html` → empty (no uncommitted UI work)
+
+The full committed non-`specs/` diff for the range is `.github/dependabot.yml`,
+`.github/workflows/ci.yml`, `.github/workflows/release.yml`, `CHANGELOG.md`,
+`docs/how-to/release.md` — the Dependabot ignore-syntax fix and the
+`download-artifact@v8` digest-mismatch pin, both CI-only. Neither changes the app's
+status `reason` strings nor the shape of the `site-status` event, so the
+"user-visible output" exception does not apply. The only untracked file is a QA
+record under `specs/`.
+
+### On reusing the `before` manifest
+
+The run request again asked that this pass reuse the `before` pass's manifest. There
+is still none, and there never was: every `before` pass on this feature skipped
+rather than captured, so no `manifest.json` and no seeded app state exist to
+reproduce. `SKIPPED.md` is the entire record for both halves of the pair.
+
+The app was not launched — the decision needed no running app — so this run says
+nothing about whether it builds or starts, and must not be read as evidence either
+way. `sites.json` was never seeded, backed up, or restored; the user's real data
+file was never at risk.
