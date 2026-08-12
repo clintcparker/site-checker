@@ -7,19 +7,38 @@ name: CI
 # check here means the code is broken, which is a different question from a red
 # release or a broken install channel.
 #
-# Action pins track the Node runtime, not the newest major. The rule is the
-# lowest major that runs on node24, because a stale runtime does not fail — it
-# emits a deprecation annotation on a green run and keeps working until GitHub
-# stops force-upgrading it, and jumping past the minimum only absorbs behavior
-# changes this repo has no reason to take on.
+# Action pins track the Node runtime, not the newest major. The governing rule
+# is the lowest major that runs on node24, because a stale runtime does not
+# fail — it emits a deprecation annotation on a green run and keeps working
+# until GitHub stops force-upgrading it — and jumping past the minimum only
+# absorbs behavior changes this repo has no reason to take on.
 #
-# Two pins sit one major above that minimum, deliberately. setup-node@v5 and
-# pnpm/action-setup@v5 are already node24, but both are pinned at v6: v6 of
-# setup-node narrows its automatic caching to npm only, and all three of its
-# call sites pass `cache: pnpm` explicitly, so that narrowing is never
-# consulted; v6 of action-setup only adds pnpm 11 support and still self-updates
-# to the `packageManager` version package.json pins. Neither v6 reaches this
-# repo, so taking them costs nothing and shortens the next bump.
+# The pins in this file and in release.yml no longer all match that rule, and
+# the divergence is recorded rather than hidden. The node24 bump shipped as
+# PR #27 at checkout@v5 / setup-node@v6 / action-setup@v6 / upload-artifact@v6 /
+# download-artifact@v7 / gh-release@v3. PR #28, a Dependabot group bump opened
+# 64 seconds after that merge and merged three minutes after it opened, moved
+# four of those to checkout@v7, setup-node@v7, upload-artifact@v7, and
+# download-artifact@v8. That PR should not have been
+# proposed — dependabot.yml lists exactly those majors as declined — and it was
+# only proposed because the ignore syntax was inert; see the comment in that
+# file. The bump was kept rather than reverted, so what follows is the
+# evaluation that should have preceded it:
+#
+#   checkout v6/v7 — v6 changes credential persistence, v7 blocks fork-PR
+#     checkout for pull_request_target and workflow_run and moves to ESM. No
+#     workflow here uses either trigger, and release.yml's homebrew job pushes
+#     with TAP_PUSH_TOKEN rather than a persisted checkout credential.
+#   setup-node v7 — inherits v6's narrowing of automatic caching to npm only.
+#     All three call sites pass `cache: pnpm` explicitly, so it is never
+#     consulted, exactly as it was not at v6.
+#   upload-artifact v7 — adds opt-in direct (unzipped) upload; `archive`
+#     defaults to true, so the zip container is unchanged.
+#   download-artifact v8 — the only one with a real effect. See release.yml.
+#
+# pnpm/action-setup stays at v6, one major above its node24 minimum: v6 only
+# adds pnpm 11 support and still self-updates to the `packageManager` version
+# package.json pins, so it costs nothing and shortens the next bump.
 #
 # The floor all of this implies is Actions runner >= 2.327.1, which every
 # GitHub-hosted runner is well past; a self-hosted runner would have to be

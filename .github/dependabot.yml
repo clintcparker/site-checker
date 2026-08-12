@@ -36,8 +36,22 @@ updates:
     open-pull-requests-limit: 5
 
     # Majors this repo evaluated and declined. Each was read at its own
-    # action.yml before being skipped, and each is already on a node24 major, so
-    # skipping it costs nothing in runtime currency today.
+    # action.yml before being skipped.
+    #
+    # Read this first: as of 2026-08-12 every entry below is INERT, and not
+    # because of a syntax problem. PR #28 moved the tree onto checkout@v7,
+    # setup-node@v7, upload-artifact@v7, and download-artifact@v8 — which are,
+    # respectively, the newest major each of those actions has published. The
+    # entries name versions the repo already runs, and Dependabot only proposes
+    # upgrades, so there is nothing left for them to decline. Do not read this
+    # block as live protection for the current pins; it is not.
+    #
+    # It is kept for two reasons. First, it is the record of which majors were
+    # evaluated and rejected, and why. Second, it is load-bearing the moment
+    # anyone pins one of these back down: revert download-artifact to v7 without
+    # this entry and Dependabot re-proposes v8 within the week, exactly as it
+    # did the first time. The entries go live again the instant a pin drops
+    # below them.
     #
     # Each entry names the declined major *by version*, deliberately, and not
     # `update-types: ["version-update:semver-major"]`. These actions are
@@ -54,22 +68,50 @@ updates:
     # decision gets made again on current information. That is intended. Adding
     # a new version to a list here is the deliberate act; inheriting a blanket
     # skip is not.
+    #
+    # The values are bare integers, and that detail is load-bearing. This file
+    # first shipped them as `8.x`/`7.x`, the npm and NuGet wildcard spelling,
+    # which does not work here: the github-actions ecosystem parses `versions:`
+    # as a Gem requirement, RubyGems accepts `8.x` as a legal *version* (it
+    # permits alphabetic segments, as in `1.0.beta`), and so `8.x` compiles to
+    # the equality `= 8.x` — a match against a version that will never exist.
+    # It raises no error. It simply matches nothing. Every entry below was inert
+    # on the first attempt, and Dependabot opened a PR bumping all four to the
+    # exact versions named here 64 seconds after the file landed on main
+    # (PR #28). A bare `8` is an exact match on the bare major tag Dependabot
+    # reports, and is the form that works. `>= 8` also parses, but it declines
+    # every future major forever, which is the permanent-silence failure above.
+    #
+    # A `versions:` list is OR'd across its elements, so checkout's ["6", "7"]
+    # declines both. That is the documented meaning of a list and matches the
+    # ecosystem examples in GitHub's options reference, but it has not been
+    # observed here — the first form never matched anything, so PR #28 proves
+    # nothing about how a list is combined.
+    #
+    # There is no local check for any of this — `actionlint` does not read this
+    # file and no schema catches a semantically empty ignore. The observable
+    # signal is on Dependabot's side and it is unambiguous: if a PR ever
+    # proposes a version that appears in a list below, the ignore is broken.
+    # Note that today's inertness means the corrected syntax cannot be observed
+    # working either; that check waits for the first pin that drops below an
+    # entry here.
     ignore:
       # v8 defaults digest-mismatch to `error`, turning what is a logged
-      # warning today into a failed release run, and it skips decompression.
-      # v7 is the pin.
+      # warning today into a failed release run, and it skips decompression for
+      # non-zip content. v7 was the evaluated pin; see release.yml for why v8
+      # is nonetheless in the tree and pinned back to warn-on-mismatch.
       - dependency-name: "actions/download-artifact"
-        versions: ["8.x"]
-      # v7 changes upload behavior; v6 is the first default-node24 major and
-      # is all this repo needs.
+        versions: ["8"]
+      # v7 adds opt-in direct (unzipped) upload; v6 is the first default-node24
+      # major and is all this repo needs.
       - dependency-name: "actions/upload-artifact"
-        versions: ["7.x"]
-      # v6 changes credential persistence and v7 adds a fork-PR checkout block.
-      # v5 is already node24 and is the pin.
+        versions: ["7"]
+      # v6 changes credential persistence and v7 adds a fork-PR checkout block
+      # plus an ESM migration. v5 is already node24.
       - dependency-name: "actions/checkout"
-        versions: ["6.x", "7.x"]
-      # v6 is already node24, is the pin, and its npm-only caching narrowing is
-      # a no-op here. v7 is newer than anything this repo has a reason to
-      # absorb.
+        versions: ["6", "7"]
+      # v6 is already node24 and its npm-only caching narrowing is a no-op here
+      # (every call site passes `cache: pnpm`). v7 is newer than anything this
+      # repo has a reason to absorb.
       - dependency-name: "actions/setup-node"
-        versions: ["7.x"]
+        versions: ["7"]
