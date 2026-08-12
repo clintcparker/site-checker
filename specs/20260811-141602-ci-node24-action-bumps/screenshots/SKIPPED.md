@@ -51,3 +51,43 @@ Two process notes for whoever reads this next:
 - Commit `c51c1aa` on branch `20260811-141602-ci-node24-action-bumps` carries an earlier draft of this same note and is **not** an ancestor of `main`; it never merged. This section supersedes it, on `main`, where the rest of the feature's artifacts live.
 
 No app launch, no `sites.json` seeding, no backup, no restore — same as both prior passes.
+
+## Re-verification (unattended run, mode `after`, target `main`, post-merge, uncommitted round)
+
+This `after` run was invoked on `main` at `59db8a8` — the commit that recorded the
+previous `before` re-verification — with a further round of this feature's work
+still uncommitted in the working tree (the `dependabot.yml` ignore-syntax fix, the
+`download-artifact@v8` `digest-mismatch: warn` pin, and the accompanying
+`CHANGELOG.md` / `docs/how-to/release.md` / `ci.yml` / `release.yml` prose). The
+skip stands: none of it touches a UI surface.
+
+Because branch == target == `main`, `git merge-base HEAD main` resolves to `HEAD`
+itself, so the committed diff is empty *trivially* and proves nothing on its own —
+the same trap the first `after` pass hit. Both the meaningful committed range and
+the working tree were therefore checked directly:
+
+- `git diff --name-only $(git merge-base HEAD main)..HEAD -- src index.html src-tauri/tauri.conf.json` → empty (trivially; recorded for completeness)
+- `git diff --name-only b64c0e2..HEAD -- src src-tauri index.html` → empty (feature merge-base through current tip, widened to all of `src-tauri/`)
+- `git status --porcelain -- src src-tauri index.html` → empty (no uncommitted UI work)
+
+The full uncommitted set is `.github/dependabot.yml`, `.github/workflows/ci.yml`,
+`.github/workflows/release.yml`, `CHANGELOG.md`, `docs/how-to/release.md`, plus
+this feature's own `specs/` artifacts. The `release.yml` change adds a
+`digest-mismatch: warn` input to a workflow step; it changes CI behavior, not the
+app's status `reason` strings or the shape of the `site-status` event, so it does
+not meet the "user-visible output" exception either.
+
+### On reusing the `before` manifest
+
+The run request asked that this pass reuse the manifest the `before` pass wrote,
+so the pair would be comparable. There is no such manifest, and there never was:
+every `before` pass on this feature skipped rather than captured, so none of them
+wrote `manifest.json` or seeded any app state. There is nothing to reproduce and
+no baseline to pair against — `SKIPPED.md` is the whole record. Had implementation
+turned out to touch UI after all, this pass would have deleted this file and
+captured `after/` only with `"baseline": "unavailable"`.
+
+The app was not launched and did not need to be, so its build/start health is
+untested by this run and this file should not be read as evidence either way.
+`sites.json` was never seeded, backed up, or restored — the user's real data file
+was never at risk, in this pass or any prior one.
