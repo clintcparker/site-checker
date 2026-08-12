@@ -228,9 +228,21 @@ jobs:
     permissions:
       contents: write
     steps:
+      # v8 adds two inputs, and of the three that govern this step exactly one
+      # changes its behavior. `merge-multiple` is unchanged from v7 and still
+      # defaults to false; v8's new `skip-decompress` also defaults to false, so
+      # artifacts still land unpacked at
+      # artifacts/site-checker-<arch>/… and the globs below still resolve.
+      # `digest-mismatch` is the one that moved: v7 logged a warning, v8 fails
+      # the run. Pinned back to warn deliberately — a mismatch here means a
+      # transport-layer problem with an artifact this same workflow produced
+      # minutes ago, and failing mid-release leaves a tag pushed with no release
+      # object, which is worse than publishing and re-running. The signal is not
+      # lost; it is in the log.
       - uses: actions/download-artifact@v8
         with:
           path: artifacts
+          digest-mismatch: warn
 
       # Updates an existing release for the tag in place rather than failing, so
       # a re-run of a partially failed release converges on one release object.

@@ -2,14 +2,58 @@
 
 All notable changes to Site Checker are recorded here.
 
+## Dependabot ignores made functional; four pins moved past the evaluated set — 2026-08-12
+
+Nothing user-visible. A correction to the entry below, which describes pins that
+`main` no longer carries.
+
+- **The `ignore:` block in `.github/dependabot.yml` never worked.** It shipped
+  with `versions: ["8.x"]`-style entries — the npm and NuGet wildcard spelling.
+  The `github-actions` ecosystem parses `versions:` as a Gem requirement, and
+  RubyGems accepts `8.x` as a legal *version* rather than a range (it permits
+  alphabetic segments, as in `1.0.beta`), so each entry compiled to the equality
+  `= 8.x` and matched nothing. No error was raised; the block was simply inert.
+  All four entries are now bare integers (`"8"`, `"7"`, `["6","7"]`), which match
+  the bare major tag Dependabot reports for a tag-pinned action. `>= 8` would
+  also parse but declines every future major forever, which is the
+  permanent-silence failure the narrow form exists to avoid.
+- **It was caught the hard way.** Dependabot opened
+  [PR #28](https://github.com/clintcparker/site-checker/pull/28) 64 seconds after
+  the file landed on `main`, proposing all four majors the file listed as
+  declined, and it merged on a green CI check. `main` now runs `checkout@v7`,
+  `setup-node@v7`, `upload-artifact@v7`, and `download-artifact@v8` — not the
+  `v5`/`v6`/`v6`/`v7` the entry below describes. The bump was kept rather than
+  reverted, and `ci.yml`'s comment block now carries the evaluation of each
+  crossed major that should have preceded the merge.
+- **Only one of the four had a real effect.** `download-artifact@v8` changed the
+  default for `digest-mismatch` from a logged warning to a hard failure, on a
+  release path that has still never run end to end. The `release` job now passes
+  `digest-mismatch: warn` explicitly, restoring the pre-v8 behavior: failing
+  mid-release would leave a tag pushed with no release object attached, which is
+  worse than publishing and re-running. The other v8/v7 changes were checked at
+  `action.yml` and are inert here — `merge-multiple` and `skip-decompress` both
+  still default to `false`, so the `release` job's `artifacts/site-checker-<arch>/…`
+  globs still resolve, and `upload-artifact@v7`'s direct upload is opt-in
+  (`archive` defaults to `true`).
+- **There is no local check for any of this.** `actionlint` does not read
+  `dependabot.yml` and no schema catches a semantically empty ignore. The only
+  signal is on Dependabot's side, and it is unambiguous: a PR proposing a version
+  that appears in an `ignore` list means the ignore is broken. That is now
+  written in the file.
+
 ## CI and release actions move to the Node 24 runtime — 2026-08-11
+
+> **Superseded in part.** The pin list in this entry was accurate when written and
+> is no longer the state of `main` — see the 2026-08-12 entry above. The Node 20
+> deprecation warning it removed has not come back.
 
 Nothing user-visible; nothing in `src/`, `index.html`, or `src-tauri/` was touched.
 Every JS action in `ci.yml` and `release.yml` was pinned to a major whose
 `runs.using` is `node20`, so both workflows emitted a Node 20 deprecation
 annotation on every otherwise-green run — the failure mode where nothing breaks
-and nobody looks. Fourteen `uses:` lines across six distinct actions now sit on
-`node24`: `checkout` v4 → v5, `setup-node` v4 → v6, `pnpm/action-setup` v4 → v6,
+and nobody looks. Fourteen of the twenty `uses:` lines, across six of the eight
+distinct actions, moved onto `node24`: `checkout` v4 → v5, `setup-node` v4 → v6,
+`pnpm/action-setup` v4 → v6,
 `upload-artifact` v4 → v6, `download-artifact` v4 → v7, and
 `softprops/action-gh-release` v2 → v3. `Swatinem/rust-cache@v2` is already
 `node24` and `dtolnay/rust-toolchain@stable` is a composite action; both were
