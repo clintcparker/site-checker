@@ -105,6 +105,57 @@ pub fn normalize_url(input: &str) -> Result<String, String> {
     Ok(candidate)
 }
 
+/// Decide whether an address already in the site list may be handed to the
+/// operating system to open, returning it **byte-identical** when it may.
+///
+/// The contrast with `normalize_url` directly above is why the two live
+/// adjacent. `normalize_url` *repairs* what a user just typed: it trims, it
+/// prepends a missing `https://`, it lowercases the scheme. This one repairs
+/// nothing. It is handed a value that is already stored — possibly hand-edited
+/// into `sites.json` — and either hands it back untouched or refuses it.
+/// `example.com` is `Ok("https://example.com")` there and an `Err` here, and
+/// that difference is the whole point: prepending a scheme to a stored value
+/// would turn an address the user never approved into one this app opens.
+///
+/// It must therefore never call `normalize_url`.
+///
+/// Returning the input rather than `parsed`'s rendering is the same trap
+/// `normalize_url` documents: `url::Url` would put a trailing slash back, so
+/// `https://example.com` would come back as `https://example.com/`. The parse
+/// is only ever consulted for its verdict.
+pub fn openable_url(input: &str) -> Result<String, String> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return Err("This site has no address, so there is nothing to open.".to_string());
+    }
+
+    let parsed = url::Url::parse(trimmed).map_err(|_| {
+        format!(
+            "\"{trimmed}\" is not a complete web address, so it cannot be opened. \
+             Edit the site to give it an http:// or https:// address."
+        )
+    })?;
+
+    // `url::Url` lowercases the scheme for this check, which is what lets a
+    // stored `HTTPS://…` through without the returned value being touched.
+    let scheme = parsed.scheme();
+    if !matches!(scheme, "http" | "https") {
+        return Err(format!(
+            "Only http and https addresses can be opened, and this one uses \"{scheme}\". \
+             Nothing was opened."
+        ));
+    }
+
+    // Unreachable for the special schemes above, which `Url::parse` already
+    // refuses without a host. Kept so the guarantee is stated where it is
+    // relied on rather than inferred from another crate's behaviour.
+    if parsed.host_str().is_none_or(|h| h.is_empty()) {
+        return Err(format!("\"{trimmed}\" has no host, so there is nothing to open."));
+    }
+
+    Ok(input.to_string())
+}
+
 /// Raise anything below the floor up to it. Never lowers a value.
 pub fn clamp_interval(secs: u64) -> u64 {
     secs.max(MIN_INTERVAL_SECS)
@@ -191,6 +242,46 @@ mod tests {
     #[test]
     fn rejects_a_non_http_scheme_regardless_of_case() {
         assert!(normalize_url("FTP://example.com").is_err());
+    }
+
+    #[test]
+    fn openable_url_returns_an_http_or_https_address_byte_identical() {
+        // Byte-identical is the requirement, not merely "equivalent": handing
+        // back `parsed`'s rendering would turn this into
+        // `https://example.com/` and open an address the user never stored.
+        assert_eq!(openable_url("https://example.com").unwrap(), "https://example.com");
+        assert_eq!(
+            openable_url("http://example.com/health?q=A").unwrap(),
+            "http://example.com/health?q=A"
+        );
+    }
+
+    #[test]
+    fn openable_url_accepts_an_uppercase_scheme_without_touching_it() {
+        // `normalize_url` would lowercase this. Here the stored value is
+        // handed back exactly as stored; `open` copes with the case.
+        assert_eq!(openable_url("HTTPS://example.com").unwrap(), "HTTPS://example.com");
+    }
+
+    #[test]
+    fn openable_url_refuses_every_other_scheme() {
+        assert!(openable_url("ftp://example.com").is_err());
+        assert!(openable_url("file:///etc/hosts").is_err());
+        assert!(openable_url("javascript:alert(1)").is_err());
+    }
+
+    #[test]
+    fn openable_url_refuses_a_scheme_less_address_rather_than_repairing_it() {
+        // The test that fails the moment `openable_url` delegates to
+        // `normalize_url`, which would answer `Ok("https://example.com")`.
+        assert!(openable_url("example.com").is_err());
+    }
+
+    #[test]
+    fn openable_url_refuses_an_empty_or_hostless_address() {
+        assert!(openable_url("").is_err());
+        assert!(openable_url("   ").is_err());
+        assert!(openable_url("https://").is_err());
     }
 
     #[test]

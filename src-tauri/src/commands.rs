@@ -4,7 +4,7 @@ use tauri::{Manager, State};
 
 use crate::engine::Engine;
 use crate::lock::{self, SharedStore};
-use crate::model::{clamp_interval, normalize_url, Site};
+use crate::model::{clamp_interval, normalize_url, openable_url, Site};
 use crate::store::{AddError, Replaced};
 
 pub struct AppState {
@@ -131,6 +131,51 @@ pub fn delete_site(state: State<'_, AppState>, id: String) -> Result<(), String>
     let write = state.store.lock().delete(&id);
     state.store.warn_on_write_failure(write);
     Ok(())
+}
+
+/// Hand a site's stored address to macOS, which opens it in whatever the user
+/// has set as their default browser.
+///
+/// `(async)` on a synchronous function is load-bearing, not decoration.
+/// Without it Tauri runs the body on the main thread, and the wait on the child
+/// process below would stall the whole window — repaint timer included — for as
+/// long as LaunchServices takes to accept the address. `set_autostart` next
+/// door does block the main thread, but it is a rare deliberate toggle; this is
+/// a control the user can hit repeatedly.
+///
+/// It waits rather than fire-and-forgetting because a bare `spawn` succeeds as
+/// soon as the *binary* is found, which cannot tell "the browser is opening"
+/// from "nothing on this Mac handles http" — and the frontend has a message to
+/// show for the second case.
+///
+/// This command makes no HTTP request, reads and writes no file, holds no lock,
+/// and touches neither the store nor the engine, so it cannot alter a site's
+/// stored data, its schedule, or its status.
+#[tauri::command(async)]
+pub fn open_url(url: String) -> Result<(), String> {
+    // A refused address is refused before anything is spawned, and its message
+    // goes back to the caller unchanged.
+    let url = openable_url(&url)?;
+
+    // Absolute path: which binary this runs must not depend on an inherited
+    // PATH. The URL is a single argument and starts with `http` or `https` by
+    // the guard above, so it can never be read as a flag.
+    let finished = std::process::Command::new("/usr/bin/open")
+        .arg(&url)
+        .output()
+        .map_err(|e| format!("{url} could not be handed to macOS to open ({e})."))?;
+
+    if finished.status.success() {
+        return Ok(());
+    }
+
+    // macOS's own words, so the reason is the system's rather than a guess.
+    let stderr = String::from_utf8_lossy(&finished.stderr).trim().to_string();
+    Err(if stderr.is_empty() {
+        format!("macOS would not open {url}.")
+    } else {
+        format!("macOS would not open {url}: {stderr}")
+    })
 }
 
 /// The login-item manager, or the reason there isn't one.
