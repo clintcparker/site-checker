@@ -58,7 +58,11 @@ downloaded are the bytes that were built. See
 ```sh
 brew uninstall site-checker
 rm "/Applications/Site Checker.app"   # only if you made the symlink above
+rm ~/Library/LaunchAgents/"Site Checker.plist"   # the launch-at-login registration
 ```
+
+Homebrew removes neither of those two — the symlink and the login item are both
+made outside the formula, so uninstalling leaves them pointing at nothing.
 
 **Your site list is never touched by Homebrew** — a formula has no equivalent of
 a cask's `--zap`, so uninstalling and reinstalling always brings your sites back.
