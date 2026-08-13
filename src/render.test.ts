@@ -304,6 +304,30 @@ describe("isOpenable", () => {
   it("is not fooled by a scheme that only appears later in the string", () => {
     expect(isOpenable("example.com?next=https://x.dev")).toBe(false);
   });
+
+  it("refuses an http/https address the backend would refuse, so nothing inert is offered as activatable", () => {
+    // FR-007's second sentence. Each of these passes a bare `^https?://`
+    // prefix test and is refused by `openable_url`, so a prefix test alone
+    // would render a control the app then declines to honour.
+    expect(isOpenable("https://")).toBe(false);
+    expect(isOpenable("http://")).toBe(false);
+    expect(isOpenable("https://[bad")).toBe(false);
+  });
+
+  it("refuses a forbidden character in the host the same way in every engine", () => {
+    // This one does not fall out of `URL` alone. happy-dom throws on it and
+    // Rust's `url` refuses it, but Chromium's forgiving host parser succeeds
+    // and percent-encodes it to `exa%20mple.com` — so a test that only asserts
+    // the verdict here would pass in CI and still render a dead control in the
+    // webview the app actually ships in. The `%` check is what makes the
+    // answer the same everywhere.
+    expect(isOpenable("https://exa mple.com")).toBe(false);
+    expect(isOpenable("https://exa%20mple.com")).toBe(false);
+  });
+
+  it("leaves a space in the path alone — that address is one the backend does open", () => {
+    expect(isOpenable("https://example.com/a b")).toBe(true);
+  });
 });
 
 describe("the row's URL control", () => {

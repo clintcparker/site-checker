@@ -55,19 +55,38 @@ Pure function in `src-tauri/src/model.rs`, beside `normalize_url`. No
 pub fn openable_url(input: &str) -> Result<String, String>
 ```
 
-**Contract**: returns `input` **byte-identical** on success, or a message
-explaining the refusal.
+**Contract**: returns the address **byte-identical apart from surrounding
+whitespace** on success, or a message explaining the refusal. Nothing about the
+address itself — scheme, case, trailing slash, path, query — is ever rewritten.
 
 | Input | Result |
 |---|---|
 | `https://example.com` | `Ok("https://example.com")` |
 | `http://example.com/health?q=A` | `Ok("http://example.com/health?q=A")` — path and query case preserved |
 | `HTTPS://example.com` | `Ok("HTTPS://example.com")` — accepted (`url::Url` lowercases the scheme for the *check*; the returned value is untouched, and `open` handles it) |
+| `"  https://example.com  "` | `Ok("https://example.com")` — surrounding whitespace dropped, see below |
 | `ftp://example.com` | `Err` — scheme not http/https |
 | `file:///etc/hosts` | `Err` |
 | `javascript:alert(1)` | `Err` |
 | `example.com` | `Err` — **not repaired**. Unlike `normalize_url`, this never prepends a scheme. |
+| `https://` / `http://` / `https://[bad` / `https://exa mple.com` | `Err` — parses to no host, or does not parse |
 | `""` / `"   "` | `Err` |
+
+### Why whitespace is dropped and that is still not a repair
+
+Surrounding whitespace is the one thing that does not survive, and it has to
+go: `/usr/bin/open` reads a leading-space argument as a **file path** rather
+than a URL, so returning the padded form meant a padded stored address was
+rendered as activatable, accepted by this guard, and then failed with
+`The file /…/  https:/example.com   does not exist.` — naming a path the user
+had never seen, and never opening anything (QA, TC-104/TC-301).
+
+Dropping it is consistent with how the address is already treated everywhere
+else: the WHATWG URL parser strips leading and trailing spaces itself,
+`url::Url::parse` here is only ever handed `trimmed`, and the frontend's
+`isOpenable` trims before deciding whether to offer the control. What comes
+back from this function is, by construction, the string that is actually handed
+to `open`.
 | `https://` (no host) | `Err` |
 
 **It must not call `normalize_url`.** That function repairs a scheme-less

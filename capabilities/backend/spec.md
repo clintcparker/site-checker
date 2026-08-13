@@ -261,7 +261,7 @@ A URL SHALL be validated before a site is created or updated, and SHALL be rejec
 
 ### A site's address can be opened in whatever browser the user already prefers
 
-The backend SHALL be able to hand a site's stored address to the operating system to open, in the user's own default browser, and SHALL NOT offer a choice of browser or a way to open anything other than a site's address. The address SHALL be passed on exactly as stored — never trimmed, re-serialized, or re-normalized on the way — so what opens is the address the user saved and not a rewriting of it.
+The backend SHALL be able to hand a site's stored address to the operating system to open, in the user's own default browser, and SHALL NOT offer a choice of browser or a way to open anything other than a site's address. The address SHALL be passed on exactly as stored — never re-serialized or re-normalized on the way, its scheme case, trailing slash, path and query all left alone — so what opens is the address the user saved and not a rewriting of it. Whitespace *surrounding* the stored address SHALL be dropped, and only that: the system's opening facility reads a leading space as the start of a **file path** rather than a web address, so passing the padding along would mean an address the app had already offered as openable could never open, and would fail naming a file the user has never seen.
 
 This SHALL be done through the system's own opening facility, invoked by a path that does not depend on the environment the app inherited, and SHALL wait for the system to accept or refuse the address. Firing and forgetting would report success as soon as the facility itself was found, which cannot tell "the browser is opening" from "nothing on this machine handles web addresses" — and the UI has something to say about the second.
 
@@ -287,7 +287,9 @@ Opening an address SHALL read and write no file, hold no lock, and touch neither
 
 Before anything is handed to the system, the address SHALL be checked, and only web schemes SHALL pass. An address that does not pass MUST be refused with a message naming why, and nothing SHALL be started.
 
-This check is deliberately **not** the one applied to what the user types. That one *repairs*: it trims, it supplies a missing scheme, it lowercases the scheme. This one repairs nothing — it is handed a value that is already stored, possibly edited into the saved file by hand, and either passes it through byte-identical or refuses it. A bare hostname is accepted and completed on entry; here it is refused. Supplying a scheme to a stored value would mean opening an address the user never approved.
+This check is deliberately **not** the one applied to what the user types. That one *repairs*: it supplies a missing scheme, it lowercases the scheme. This one repairs nothing about the address — it is handed a value that is already stored, possibly edited into the saved file by hand, and either passes it through unchanged or refuses it. A bare hostname is accepted and completed on entry; here it is refused. Supplying a scheme to a stored value would mean opening an address the user never approved.
+
+An address that names a web scheme but resolves to no host SHALL be refused as well, and the display SHALL refuse it on the same terms — an address the app will not open must never be offered as though it would.
 
 A scheme stored in upper case SHALL pass, since case does not change which scheme it is, and MUST be handed over with its case untouched.
 

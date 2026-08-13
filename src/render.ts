@@ -30,9 +30,41 @@ const LABEL: Record<"up" | "down" | "pending", string> = {
  * asynchronously would still be answering a question this synchronous render
  * needs now. If the two ever drift, the UI offers something the backend then
  * refuses, which surfaces as a message in the banner rather than as silence.
+ *
+ * FR-007's second sentence makes that drift a defect and not just an
+ * inefficiency: a URL the app will not open must not be *presented* as
+ * activatable. A bare `^https?://` prefix test is not enough to hold it — the
+ * QA run confirmed `https://`, `http://`, `https://[bad` and
+ * `https://exa mple.com` all pass a prefix test, all render as buttons, and are
+ * all refused by the backend. So this asks the platform's own URL parser the
+ * same two questions `openable_url` asks `url::Url`: does it parse, and does it
+ * have a host. `URL` is synchronous and pure, which is what the repaint needs.
+ *
+ * The host is then checked for `%` and whitespace, and that third question is
+ * the one experience had to teach. Engines disagree about a *forbidden*
+ * character in the host: Rust's `url` refuses `https://exa mple.com`, and
+ * Chromium's forgiving host parser instead percent-encodes it into the host as
+ * `exa%20mple.com` and reports success. Delegating the whole verdict to `URL`
+ * therefore makes this function's answer depend on which engine is hosting it —
+ * and this app ships in neither of the two it gets tested in, but in WKWebView.
+ * A real host never contains a `%` or a space, so rejecting those closes the
+ * gap the same way in every engine. It deliberately looks at the parsed `host`
+ * and not at the whole string, so a legitimate space in a *path*
+ * (`https://example.com/a b`, which the add form accepts and the backend opens)
+ * is left alone.
  */
 export function isOpenable(url: string): boolean {
-  return /^https?:\/\//i.test(url.trim());
+  const trimmed = url.trim();
+  // Cheap scheme test first: it is the only question for the common refusal
+  // (a hand-edited `ftp://` entry) and it keeps a non-http scheme from ever
+  // reaching the parser.
+  if (!/^https?:\/\//i.test(trimmed)) return false;
+  try {
+    const { host } = new URL(trimmed);
+    return host !== "" && !/[%\s]/.test(host);
+  } catch {
+    return false;
+  }
 }
 
 /**

@@ -106,16 +106,18 @@ pub fn normalize_url(input: &str) -> Result<String, String> {
 }
 
 /// Decide whether an address already in the site list may be handed to the
-/// operating system to open, returning it **byte-identical** when it may.
+/// operating system to open, returning the address **byte-identical apart from
+/// surrounding whitespace** when it may.
 ///
 /// The contrast with `normalize_url` directly above is why the two live
 /// adjacent. `normalize_url` *repairs* what a user just typed: it trims, it
 /// prepends a missing `https://`, it lowercases the scheme. This one repairs
-/// nothing. It is handed a value that is already stored — possibly hand-edited
-/// into `sites.json` — and either hands it back untouched or refuses it.
-/// `example.com` is `Ok("https://example.com")` there and an `Err` here, and
-/// that difference is the whole point: prepending a scheme to a stored value
-/// would turn an address the user never approved into one this app opens.
+/// nothing about the address itself. It is handed a value that is already
+/// stored — possibly hand-edited into `sites.json` — and either hands it back
+/// or refuses it. `example.com` is `Ok("https://example.com")` there and an
+/// `Err` here, and that difference is the whole point: prepending a scheme to a
+/// stored value would turn an address the user never approved into one this app
+/// opens.
 ///
 /// It must therefore never call `normalize_url`.
 ///
@@ -123,6 +125,16 @@ pub fn normalize_url(input: &str) -> Result<String, String> {
 /// `normalize_url` documents: `url::Url` would put a trailing slash back, so
 /// `https://example.com` would come back as `https://example.com/`. The parse
 /// is only ever consulted for its verdict.
+///
+/// The one thing it does drop is *surrounding whitespace*, and that is not a
+/// repair of the address: the WHATWG URL parser strips leading and trailing
+/// spaces itself, `url::Url::parse` is already only ever handed `trimmed`, and
+/// `isOpenable` on the frontend trims before deciding whether to offer the
+/// control at all. Returning the padded form instead is what the QA run caught:
+/// `/usr/bin/open` reads a leading-space argument as a **file path** rather than
+/// a URL, so a padded address renders as activatable, is accepted here, and then
+/// fails with "the file … does not exist" naming a path the user has never seen.
+/// The address that comes back is therefore the one that is actually opened.
 pub fn openable_url(input: &str) -> Result<String, String> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
@@ -153,7 +165,7 @@ pub fn openable_url(input: &str) -> Result<String, String> {
         return Err(format!("\"{trimmed}\" has no host, so there is nothing to open."));
     }
 
-    Ok(input.to_string())
+    Ok(trimmed.to_string())
 }
 
 /// Raise anything below the floor up to it. Never lowers a value.
@@ -285,6 +297,20 @@ mod tests {
     }
 
     #[test]
+    fn openable_url_returns_a_padded_address_without_its_padding() {
+        // Regression: returning the padded form made `/usr/bin/open` read the
+        // argument as a *file path* rather than a URL, so an address the UI had
+        // already offered as activatable could never open and the failure named
+        // a filesystem path the user had never seen.
+        assert_eq!(
+            openable_url("  https://example.com  ").unwrap(),
+            "https://example.com"
+        );
+        assert_eq!(openable_url(" https://example.com").unwrap(), "https://example.com");
+        assert_eq!(openable_url("https://example.com\n").unwrap(), "https://example.com");
+    }
+
+    #[test]
     fn clamps_intervals_below_the_floor() {
         assert_eq!(clamp_interval(0), 10);
         assert_eq!(clamp_interval(9), 10);
@@ -325,3 +351,4 @@ mod tests {
         assert_eq!(serde_json::to_string(&CheckState::Down).unwrap(), "\"down\"");
     }
 }
+

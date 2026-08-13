@@ -62,7 +62,15 @@ Not stored anywhere — derived on each render from the site's URL.
 **Derivation rule** (`isOpenable`, pure):
 
 > A URL is activatable iff, after trimming, it begins with a case-insensitive
-> `http://` or `https://`.
+> `http://` or `https://` **and** parses as a URL with a non-empty host.
+
+The host clause is what makes FR-007's second sentence hold. A prefix test alone
+admits `https://`, `http://`, `https://[bad` and `https://exa mple.com` — all
+four render as controls and are all refused by `openable_url`, which is exactly
+the "presented as activatable but never opened" case FR-007 forbids (QA,
+TC-105/TC-213). Asking the platform's `URL` parser for a host is the same pair
+of questions the backend asks `url::Url`, and it stays synchronous and pure, so
+the once-a-second repaint is unaffected.
 
 Consequences:
 
