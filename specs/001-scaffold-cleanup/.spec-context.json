@@ -1,0 +1,24 @@
+{
+  "workflow": "speckit",
+  "specName": "Scaffold Cleanup",
+  "branch": "",
+  "currentStep": "specify",
+  "status": "archived",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-13T20:19:19.521Z"
+    },
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-13T20:19:44.124Z"
+    }
+  ],
+  "telemetryInstanceId": "b117481f-9158-4a75-b999-d5aadab821b1"
+}

@@ -1,0 +1,24 @@
+{
+  "workflow": "speckit",
+  "specName": "120353 Concurrency Hardening",
+  "branch": "",
+  "currentStep": "specify",
+  "status": "archived",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-13T20:19:30.353Z"
+    },
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-13T20:19:44.124Z"
+    }
+  ],
+  "telemetryInstanceId": "44560179-914e-4673-85e5-f21f02b74be0"
+}

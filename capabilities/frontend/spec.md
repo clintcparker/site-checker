@@ -111,6 +111,10 @@ Adding or removing a label moves the address between those two lines, changing w
 
 An address that is not a web address SHALL be displayed as ordinary text: not underlined, not reachable by keyboard, and not announced as something that can be acted on. It MUST NOT be hidden, flagged as invalid, or repaired — it is shown as it is stored, simply without an affordance the app cannot honour.
 
+The scheme alone is NOT sufficient grounds to offer an address. An address the backend would refuse SHALL be rendered as that same ordinary text even when it begins with a web scheme — so an address that does not parse as a URL, or that carries no host, gets no affordance. The judgement stays synchronous, because it is made on every repaint.
+
+Because the parse is delegated to the host web engine, and engines disagree about what is a forbidden character in a host — some refusing it, some percent-encoding it into the host and reporting success — the decision MUST NOT rest on the engine's verdict alone where they differ. A host containing a percent sign or whitespace SHALL be treated as not openable, which closes that gap identically in every engine, including the one the app actually ships in. This applies to the *host* only: a space elsewhere in the address, such as in its path, is accepted here exactly as the backend accepts it.
+
 > **Known duplication.** Which addresses may be opened is decided in two places: here, to choose how a row renders, and in the backend, which is authoritative and refuses anything else. It is not fetched from the backend because it is a rendering decision taken on every repaint, once a second per row. Should the two ever disagree, the UI would offer something the backend then refuses — which surfaces as a visible message rather than as silence.
 
 #### Scenario: a saved address uses a non-web scheme
@@ -121,6 +125,18 @@ An address that is not a web address SHALL be displayed as ordinary text: not un
 #### Scenario: such an address is clicked
 - **WHEN** the user clicks it anyway
 - **THEN** nothing happens
+
+#### Scenario: a web-scheme address the backend would refuse
+- **WHEN** a row's stored address begins with a web scheme but does not parse or names no host
+- **THEN** it appears as plain text with no affordance, exactly as a non-web address does
+
+#### Scenario: the host itself is malformed
+- **WHEN** a stored address's host contains a space or a percent sign
+- **THEN** it is not offered as openable, whichever web engine is rendering the app
+
+#### Scenario: a space appears later in the address
+- **WHEN** a stored address has a valid host and a space in its path
+- **THEN** it is still offered as openable, matching what the backend will open
 
 ### Everything reachable by pointer in a row is reachable by keyboard
 

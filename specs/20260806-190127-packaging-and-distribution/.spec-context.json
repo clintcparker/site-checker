@@ -1,0 +1,24 @@
+{
+  "workflow": "speckit",
+  "specName": "190127 Packaging And Distribution",
+  "branch": "",
+  "currentStep": "specify",
+  "status": "archived",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-13T20:19:32.791Z"
+    },
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-13T20:19:44.124Z"
+    }
+  ],
+  "telemetryInstanceId": "85831f9e-7318-4926-a482-fd2b1c426c19"
+}

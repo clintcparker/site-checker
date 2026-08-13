@@ -1,0 +1,24 @@
+{
+  "workflow": "speckit",
+  "specName": "202608 Autostart Launchagent Path",
+  "branch": "",
+  "currentStep": "specify",
+  "status": "archived",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-13T20:19:35.421Z"
+    },
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-13T20:19:44.124Z"
+    }
+  ],
+  "telemetryInstanceId": "bcf9e8e0-5890-4f68-88e5-942c9c054c18"
+}

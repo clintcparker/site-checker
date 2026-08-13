@@ -1,0 +1,24 @@
+{
+  "workflow": "speckit",
+  "specName": "105424 Urls Clickable And",
+  "branch": "",
+  "currentStep": "specify",
+  "status": "archived",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-13T20:19:37.951Z"
+    },
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-13T20:19:44.124Z"
+    }
+  ],
+  "telemetryInstanceId": "3ed44cb6-455a-4366-9f21-de705592eec3"
+}

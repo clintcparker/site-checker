@@ -1,0 +1,24 @@
+{
+  "workflow": "speckit",
+  "specName": "150909 Cleanup Scaffold Leftovers",
+  "branch": "",
+  "currentStep": "specify",
+  "status": "archived",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-13T20:19:28.146Z"
+    },
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-08-13T20:19:44.124Z"
+    }
+  ],
+  "telemetryInstanceId": "a2feaf2e-9f70-4f60-bc11-19b7b8254364"
+}
