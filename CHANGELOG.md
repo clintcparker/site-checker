@@ -2,6 +2,50 @@
 
 All notable changes to Site Checker are recorded here.
 
+## A site's URL is now a control that opens it — 2026-08-13
+
+Getting from a row to the page it watches took five actions: select the URL, copy it,
+switch to a browser, paste, return. It now takes one.
+
+- **Each row's URL is a button that opens that address in your default browser.** On a
+  labelled row the URL beneath the label is the control; the label itself stays inert
+  text, so the thing you click is the thing that opens. The address is read from the
+  element's data attribute rather than its rendered text, so a long URL that wraps or
+  truncates still opens in full — a 143-character address arrives complete.
+- **It works from the keyboard exactly as it does from the pointer.** The control is a
+  native `<button>`, so it sits in the tab order with no explicit `tabindex`, Enter and
+  Space activate it, and it carries a visible `:focus-visible` ring. Focus survives the
+  table's repaints — an age tick, a status arrival, even a row reorder leave the focused
+  URL focused, because the existing in-place reconciliation is preserved rather than
+  worked around.
+- **The dashboard never navigates.** A `<button>` was chosen over an `<a href>` precisely
+  so there is no URL for the webview to follow: Cmd-click, middle-click, and a JS failure
+  all leave the app where it was. Activation also cannot reach the row's Edit or Delete
+  handler — that isolation is structural (`data-open-url` versus `data-action`) rather
+  than a matter of convention.
+- **Only `http` and `https` are ever opened.** A `sites.json` edited by hand can name any
+  scheme; `ftp:`, `file:`, `javascript:` and scheme-less entries are refused before
+  anything is spawned, and they render as plain text rather than offering a control that
+  would not work. The address goes to `/usr/bin/open` by absolute path, as a single
+  argument, with no shell — so no new capability grant was needed and command injection is
+  not reachable. This is a first-party command rather than `tauri-plugin-opener`, which
+  adds no dependency to either lockfile.
+- **What the app offers as clickable is what it will actually open.** Two ways that could
+  drift were found by QA and closed. A stored address padded with whitespace used to pass
+  both guards and reach `open` still padded, which macOS resolves as a *file path* — so it
+  could never open, and the error named a directory the user had never seen. And four
+  hostless or malformed addresses (`https://`, `http://`, `https://[bad`,
+  `https://exa mple.com`) were offered as controls the backend then refused. The guard now
+  returns the trimmed address, and the frontend requires a parseable, non-empty host free
+  of `%` and whitespace — decided in the guard rather than delegated to the engine's URL
+  parser, because that answer differs between Chromium, happy-dom and the WKWebView the
+  app actually ships in. A legitimate space in a *path* still opens.
+- **A failed open explains itself and costs nothing.** The reason is surfaced in the
+  existing non-blocking notice area and everything else — adding, editing, deleting,
+  checking — keeps working. Rapid repeat activations on the same address collapse to one
+  navigation within a 1000 ms window, and a suppressed repeat deliberately does not extend
+  that window.
+
 ## Launch at login survives a `brew upgrade` — 2026-08-12
 
 Fixes [#25](https://github.com/clintcparker/site-checker/issues/25). Nothing changes on

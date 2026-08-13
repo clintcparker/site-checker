@@ -1,0 +1,23 @@
+--- TC-301 (was TC-104): whitespace-padded stored address ---
+QA2 padded both ends | input="  https://example.com  " | OK returned="https://example.com" | unchanged_apart_from_padding=true
+QA2 leading space | input=" https://example.com" | OK returned="https://example.com" | unchanged_apart_from_padding=true
+QA2 trailing newline | input="https://example.com\n" | OK returned="https://example.com" | unchanged_apart_from_padding=true
+--- TC-302 (was TC-105): hostless / malformed ---
+QA2 hostless/malformed | input="https://" | ERR "https://" is not a complete web address, so it cannot be opened. Edit the site to give it an http:// or https:// address.
+QA2 hostless/malformed | input="http://" | ERR "http://" is not a complete web address, so it cannot be opened. Edit the site to give it an http:// or https:// address.
+QA2 hostless/malformed | input="https://[bad" | ERR "https://[bad" is not a complete web address, so it cannot be opened. Edit the site to give it an http:// or https:// address.
+QA2 hostless/malformed | input="https://exa mple.com" | ERR "https://exa mple.com" is not a complete web address, so it cannot be opened. Edit the site to give it an http:// or https:// address.
+--- TC-303 regression: everything that passed before still passes ---
+QA2 accepted | input="https://example.com" | OK returned="https://example.com" | unchanged_apart_from_padding=true
+QA2 accepted | input="http://example.com/health?q=A" | OK returned="http://example.com/health?q=A" | unchanged_apart_from_padding=true
+QA2 accepted | input="HTTPS://example.com" | OK returned="HTTPS://example.com" | unchanged_apart_from_padding=true
+QA2 accepted | input="https://www.example.com/very/long/path/segment/that/keeps/going/and/going?query=parameter&another=value&third=something-quite-long#fragment-too" | OK returned="https://www.example.com/very/long/path/segment/that/keeps/going/and/going?query=parameter&another=value&third=something-quite-long#fragment-too" | unchanged_apart_from_padding=true
+QA2 refused | input="ftp://ftp.example.com/pub/archive" | ERR Only http and https addresses can be opened, and this one uses "ftp". Nothing was opened.
+QA2 refused | input="file:///etc/passwd" | ERR Only http and https addresses can be opened, and this one uses "file". Nothing was opened.
+QA2 refused | input="javascript:alert(1)" | ERR Only http and https addresses can be opened, and this one uses "javascript". Nothing was opened.
+QA2 refused | input="mailto:me@example.com" | ERR Only http and https addresses can be opened, and this one uses "mailto". Nothing was opened.
+QA2 refused | input="example.com" | ERR "example.com" is not a complete web address, so it cannot be opened. Edit the site to give it an http:// or https:// address.
+QA2 refused | input="" | ERR This site has no address, so there is nothing to open.
+test model::qa_probe_run2::qa_scenarios_run2 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 101 filtered out; finished in 0.00s

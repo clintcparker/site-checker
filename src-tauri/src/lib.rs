@@ -122,6 +122,7 @@ pub fn run() {
             commands::delete_site,
             commands::get_autostart,
             commands::set_autostart,
+            commands::open_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

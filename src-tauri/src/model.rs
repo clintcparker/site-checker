@@ -105,6 +105,69 @@ pub fn normalize_url(input: &str) -> Result<String, String> {
     Ok(candidate)
 }
 
+/// Decide whether an address already in the site list may be handed to the
+/// operating system to open, returning the address **byte-identical apart from
+/// surrounding whitespace** when it may.
+///
+/// The contrast with `normalize_url` directly above is why the two live
+/// adjacent. `normalize_url` *repairs* what a user just typed: it trims, it
+/// prepends a missing `https://`, it lowercases the scheme. This one repairs
+/// nothing about the address itself. It is handed a value that is already
+/// stored — possibly hand-edited into `sites.json` — and either hands it back
+/// or refuses it. `example.com` is `Ok("https://example.com")` there and an
+/// `Err` here, and that difference is the whole point: prepending a scheme to a
+/// stored value would turn an address the user never approved into one this app
+/// opens.
+///
+/// It must therefore never call `normalize_url`.
+///
+/// Returning the input rather than `parsed`'s rendering is the same trap
+/// `normalize_url` documents: `url::Url` would put a trailing slash back, so
+/// `https://example.com` would come back as `https://example.com/`. The parse
+/// is only ever consulted for its verdict.
+///
+/// The one thing it does drop is *surrounding whitespace*, and that is not a
+/// repair of the address: the WHATWG URL parser strips leading and trailing
+/// spaces itself, `url::Url::parse` is already only ever handed `trimmed`, and
+/// `isOpenable` on the frontend trims before deciding whether to offer the
+/// control at all. Returning the padded form instead is what the QA run caught:
+/// `/usr/bin/open` reads a leading-space argument as a **file path** rather than
+/// a URL, so a padded address renders as activatable, is accepted here, and then
+/// fails with "the file … does not exist" naming a path the user has never seen.
+/// The address that comes back is therefore the one that is actually opened.
+pub fn openable_url(input: &str) -> Result<String, String> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return Err("This site has no address, so there is nothing to open.".to_string());
+    }
+
+    let parsed = url::Url::parse(trimmed).map_err(|_| {
+        format!(
+            "\"{trimmed}\" is not a complete web address, so it cannot be opened. \
+             Edit the site to give it an http:// or https:// address."
+        )
+    })?;
+
+    // `url::Url` lowercases the scheme for this check, which is what lets a
+    // stored `HTTPS://…` through without the returned value being touched.
+    let scheme = parsed.scheme();
+    if !matches!(scheme, "http" | "https") {
+        return Err(format!(
+            "Only http and https addresses can be opened, and this one uses \"{scheme}\". \
+             Nothing was opened."
+        ));
+    }
+
+    // Unreachable for the special schemes above, which `Url::parse` already
+    // refuses without a host. Kept so the guarantee is stated where it is
+    // relied on rather than inferred from another crate's behaviour.
+    if parsed.host_str().is_none_or(|h| h.is_empty()) {
+        return Err(format!("\"{trimmed}\" has no host, so there is nothing to open."));
+    }
+
+    Ok(trimmed.to_string())
+}
+
 /// Raise anything below the floor up to it. Never lowers a value.
 pub fn clamp_interval(secs: u64) -> u64 {
     secs.max(MIN_INTERVAL_SECS)
@@ -194,6 +257,60 @@ mod tests {
     }
 
     #[test]
+    fn openable_url_returns_an_http_or_https_address_byte_identical() {
+        // Byte-identical is the requirement, not merely "equivalent": handing
+        // back `parsed`'s rendering would turn this into
+        // `https://example.com/` and open an address the user never stored.
+        assert_eq!(openable_url("https://example.com").unwrap(), "https://example.com");
+        assert_eq!(
+            openable_url("http://example.com/health?q=A").unwrap(),
+            "http://example.com/health?q=A"
+        );
+    }
+
+    #[test]
+    fn openable_url_accepts_an_uppercase_scheme_without_touching_it() {
+        // `normalize_url` would lowercase this. Here the stored value is
+        // handed back exactly as stored; `open` copes with the case.
+        assert_eq!(openable_url("HTTPS://example.com").unwrap(), "HTTPS://example.com");
+    }
+
+    #[test]
+    fn openable_url_refuses_every_other_scheme() {
+        assert!(openable_url("ftp://example.com").is_err());
+        assert!(openable_url("file:///etc/hosts").is_err());
+        assert!(openable_url("javascript:alert(1)").is_err());
+    }
+
+    #[test]
+    fn openable_url_refuses_a_scheme_less_address_rather_than_repairing_it() {
+        // The test that fails the moment `openable_url` delegates to
+        // `normalize_url`, which would answer `Ok("https://example.com")`.
+        assert!(openable_url("example.com").is_err());
+    }
+
+    #[test]
+    fn openable_url_refuses_an_empty_or_hostless_address() {
+        assert!(openable_url("").is_err());
+        assert!(openable_url("   ").is_err());
+        assert!(openable_url("https://").is_err());
+    }
+
+    #[test]
+    fn openable_url_returns_a_padded_address_without_its_padding() {
+        // Regression: returning the padded form made `/usr/bin/open` read the
+        // argument as a *file path* rather than a URL, so an address the UI had
+        // already offered as activatable could never open and the failure named
+        // a filesystem path the user had never seen.
+        assert_eq!(
+            openable_url("  https://example.com  ").unwrap(),
+            "https://example.com"
+        );
+        assert_eq!(openable_url(" https://example.com").unwrap(), "https://example.com");
+        assert_eq!(openable_url("https://example.com\n").unwrap(), "https://example.com");
+    }
+
+    #[test]
     fn clamps_intervals_below_the_floor() {
         assert_eq!(clamp_interval(0), 10);
         assert_eq!(clamp_interval(9), 10);
@@ -234,3 +351,4 @@ mod tests {
         assert_eq!(serde_json::to_string(&CheckState::Down).unwrap(), "\"down\"");
     }
 }
+

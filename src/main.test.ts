@@ -4,6 +4,7 @@ import {
   listSites,
   onSiteStatus,
   onStoreWarning,
+  openUrl,
   type Site,
   type StatusEvent,
 } from "./api";
@@ -22,6 +23,7 @@ vi.mock("./api", () => ({
   addSite: vi.fn(),
   updateSite: vi.fn(),
   deleteSite: vi.fn(),
+  openUrl: vi.fn(() => Promise.resolve()),
 }));
 
 const NOW = 1_700_000_000_000;
@@ -198,5 +200,33 @@ describe("removeSite", () => {
     // `statuses`, and re-adding the id would reattach it — showing a confirmed
     // Down for a site that has never been checked.
     expect(main.currentRows().find((r) => r.site.id === "recycled")?.status).toBeNull();
+  });
+});
+
+describe("an open that fails", () => {
+  function urlControl(id: string): HTMLButtonElement {
+    return document.querySelector<HTMLButtonElement>(
+      `#rows tr[data-id="${id}"] [data-open-url]`,
+    )!;
+  }
+
+  it("puts the reason in the banner and leaves the table running", async () => {
+    const banner = document.querySelector<HTMLElement>("#banner")!;
+    vi.mocked(openUrl).mockRejectedValueOnce("macOS would not open https://fails.example.com.");
+
+    main.upsertSite(site("fails", { url: "https://fails.example.com" }));
+    urlControl("fails").click();
+    await flush();
+
+    expect(openUrl).toHaveBeenCalledWith("https://fails.example.com");
+    expect(banner.hidden).toBe(false);
+    expect(banner.textContent).toBe("macOS would not open https://fails.example.com.");
+
+    // The failure disturbs nothing else: a status still lands, the table still
+    // repaints, and the row is still there to click again.
+    emitStatus(status("fails", { state: "down", reason: "HTTP 500" }));
+    expect(main.currentRows().find((r) => r.site.id === "fails")?.status?.state).toBe("down");
+    expect(urlControl("fails")).not.toBeNull();
+    expect(document.querySelector("#site-submit")).not.toBeNull();
   });
 });

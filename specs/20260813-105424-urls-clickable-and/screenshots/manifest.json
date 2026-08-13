@@ -1,0 +1,132 @@
+{
+  "feature": "20260813-105424-urls-clickable-and",
+  "branch": "20260813-105424-urls-clickable-and",
+  "mode_last_run": "after",
+  "baseline": "available",
+  "targets": [
+    {
+      "slug": "site-list",
+      "why": "The main site table is the entire surface this feature changes. The baseline shows all four cases the spec turns on, rendered as inert text: an unlabelled row whose URL is the primary line (FR-001), a labelled row whose URL sits beneath the label (FR-008), and a hand-edited ftp:// entry that must stay inert after the change (FR-007). Critically it shows that no URL is visually distinguishable as activatable today, which is the FR-004 before-state.",
+      "after_shows": "The three http(s) URLs now render underlined with cursor:pointer, and the ftp:// URL is still plain text. The label 'Hand-Edited Scheme' and the other labels are unchanged and never underlined (FR-008: the label is not a control). Status dots and 'Last checked' are untouched (FR-010)."
+    },
+    {
+      "slug": "long-url",
+      "why": "FR-006 requires the full stored URL to open regardless of how much of it is visible, and the spec's edge cases call out the narrow site column. The baseline shows long URLs wrapping onto two lines and pushing the Edit/Delete actions past the right edge of the window. The after shot must show the activatable affordance covering the whole wrapped address and not making that overflow worse.",
+      "after_shows": "The underline covers both wrapped lines of each long address, so the affordance matches the full rendered extent. The pre-existing horizontal overflow of the Edit/Delete column is unchanged by this feature - it is present identically in the same-renderer baseline captured from main."
+    },
+    {
+      "slug": "site-list-focus",
+      "why": "NEW TARGET, after-only. FR-005 requires a visible focus indicator when a URL control is reached by keyboard. The before pass could not capture any keyboard-driven state (see notes), so there is no baseline for this one; on main the URL is a <span> and cannot receive focus at all, so the baseline is structurally 'no such state exists'.",
+      "after_shows": "The first row's URL button carries the 2px #0a84ff :focus-visible ring with a 2px offset. Verified programmatically in the same pass: document.activeElement is the BUTTON with data-open-url=https://example.com and it matches :focus-visible."
+    }
+  ],
+  "viewports": {
+    "default": "720x480",
+    "narrow": "480x320"
+  },
+  "viewports_captured": [
+    "default",
+    "narrow"
+  ],
+  "files": {
+    "after/site-list-default.png": "720x480, Vite-served frontend of THIS branch",
+    "after/site-list-narrow.png": "480x320, Vite-served frontend of THIS branch",
+    "after/site-list-focus-default.png": "720x480, FR-005 focus ring, Vite-served frontend of THIS branch",
+    "after/long-url-default.png": "720x480, Vite-served frontend of THIS branch",
+    "after/long-url-narrow.png": "480x320, Vite-served frontend of THIS branch",
+    "before/site-list-default.png": "720x480, NATIVE Tauri window capture from the before pass (different capture method - see notes)",
+    "before/long-url-default.png": "720x480, NATIVE Tauri window capture from the before pass (different capture method - see notes)",
+    "before/site-list-default-vite.png": "720x480, SAME-RENDERER baseline captured during this after pass from main @ f18b947",
+    "before/site-list-narrow-vite.png": "480x320, SAME-RENDERER baseline captured during this after pass from main @ f18b947",
+    "before/long-url-default-vite.png": "720x480, SAME-RENDERER baseline captured during this after pass from main @ f18b947",
+    "before/long-url-narrow-vite.png": "480x320, SAME-RENDERER baseline captured during this after pass from main @ f18b947"
+  },
+  "notes": [
+    "Feature identity resolved from .specify/run-context.json found in the worktree /Users/clint/src/clintcparker/site-checker--20260813-105424-urls-clickable-and (the only run-context.json under /Users/clint/src/clintcparker). It was NOT present in the primary checkout or in $SPECIFY_INIT_DIR, which was unset. The primary checkout was standing on main at f18b947, so inferring the feature from the branch would have named the previous feature. Same resolution the before pass recorded.",
+    "This is a true pre-implementation baseline: the branch's diff against main is spec/plan/tasks documentation only, with no change under src/ or src-tauri/. The captured app is therefore the same code as target branch main.",
+    "UI-relevance: YES. The feature changes how each site's URL renders in the table (activatable affordance, hover, focus) which falls squarely inside the profile's ui_surface (src/, index.html). Confirmed in this after pass: git diff main..HEAD touches src/api.ts, src/main.ts, src/open.ts, src/render.ts, src/styles.css (plus their tests).",
+    "AFTER-PASS CAPTURE METHOD CHANGED - READ THIS BEFORE COMPARING IMAGES. The before pass captured the real Tauri window with `screencapture`. That was impossible this run: THE SCREEN WAS LOCKED. `screencapture` of the full display returned the macOS lock screen (wallpaper + clock), and `-R <rect>` and `-l <windowid>` both failed outright with 'could not create image from rect/window' on macOS 26.6.1. Unlocking needs the user's password and was not attempted. The display also idle-slept mid-run; `caffeinate -d -i -u` woke it but a woken locked screen is still the lock screen. So the after images were captured from the SAME frontend source served by the SAME Vite dev server the Tauri window was showing (localhost:1420, the worktree's src/), driven headlessly by Playwright with window.__TAURI_INTERNALS__ stubbed. Same HTML/CSS/TS, different renderer (Chromium vs WKWebView). before/site-list-default.png and before/long-url-default.png are therefore NOT pixel-comparable with their after/ counterparts - the window chrome, font rasterisation and content height differ.",
+    "MITIGATION FOR THAT GAP - a same-renderer baseline was captured in this same pass so a genuine like-for-like pair exists. A second Vite server was run from the PRIMARY checkout, standing on main @ f18b947 (the target branch, i.e. the pre-implementation state), on port 1422, and the identical Playwright harness and seed captured before/*-vite.png. Compare after/site-list-default.png against before/site-list-default-vite.png: identical layout, the only difference is the underline. That the -vite baseline really is pre-change was asserted programmatically, not assumed: in main's render the site cell contains 0 <button> elements, 0 [data-open-url] attributes and 0 elements with computed text-decoration underline, only SPAN.site-primary / SPAN.site-secondary. `grep -c site-url` on main's src/styles.css is 0.",
+    "VIEWPORT GAP CLOSED - the narrow 480x320 viewport the before pass could not reach (it needed an Accessibility grant to resize the native window) is captured in this pass at both after/ and the -vite baseline, because a headless browser viewport needs no macOS permission. The original native before/*.png pair still has no narrow counterpart; before/*-narrow-vite.png is its baseline instead.",
+    "STATE GAP CLOSED - FR-005's keyboard focus ring is captured (after/site-list-focus-default.png), also impossible for the before pass. There is no separate hover state to capture: the implementation makes the underline a PERSISTENT affordance (.site-url { text-decoration: underline; cursor: pointer }) rather than a hover-only one, so FR-004's affordance is visible in every after shot and needs no pointer to demonstrate.",
+    "ACCESSIBILITY STILL REFUSED - re-probed this run as the before pass asked. osascript window-level calls fail with -1719 'not allowed assistive access', and a freshly compiled Swift binary reports AXIsProcessTrusted() = false, so the compiled-helper workaround did not apply this time either. NSRunningApplication.activate() also returned false for every matching process (macOS 26 blocks cross-app activation from a non-frontmost caller). Window geometry was still readable without AX via CGWindowListCopyWindowInfo.",
+    "STUBBED BACKEND - the Playwright harness answers list_sites with app.seed_sites (the before pass's seed, unchanged), get_warning=null and get_autostart=false, and injects `site-status` events so rows show Up/Down rather than Pending, matching the before shots. Those status values are stub-injected, not measured: they are scenery for a feature about URL rendering, and the same stub was used for both the after images and the -vite baseline so they cancel out in the comparison. The one status detail that came from the code and not the stub: checked_at is milliseconds (src-tauri/src/engine.rs uses now_millis()); a first attempt passing seconds rendered '495795h ago' and was discarded and retaken.",
+    "The stub also demonstrated FR-006 without a screenshot: clicking the long-URL control passed the whole 143-character stored address to open_url, read from data-open-url rather than from the rendered text.",
+    "WRONG-BINARY NEAR MISS, recorded because it bears on the before pass's evidence. An attempt to raise the dev window with `osascript -e 'tell application id \"com.clintparker.site-checker\" to activate'` LAUNCHED the Homebrew-installed release build (/opt/homebrew/Cellar/site-checker/1.0.0/.../Site Checker.app) as a second process, which put a second 'Site Checker' window on screen. It was identified by its executable path and killed before any capture was taken; nothing in this manifest comes from it. Worth flagging for review: that release window measured exactly 720x480 at x=2200 y=263, which is precisely the `app.window.bounds_at_capture` the before pass recorded, whereas this worktree's dev window measured 706x470 at x=2207 y=268. That does not prove the before pass captured the installed release build, but it is close enough that a reviewer should not treat before/site-list-default.png and before/long-url-default.png as certainly the dev build. The -vite baseline is not exposed to this doubt: it was served straight from main's working tree.",
+    "The user's real sites.json (6 real sites, dated Aug 10) was copied out of tree to /tmp/site-checker-REALDATA-safety-after.json BEFORE anything was touched, moved aside to sites.json.shots-backup during the run, restored afterwards, and verified byte-identical by sha256 to the safety copy before that copy was deleted. Final state of the config dir: sites.json (978 bytes, Aug 10) + autostart.initialized, no leftover backup. Unlike the before pass, no stale backup was found on entry.",
+    "Cleanup verified: no `tauri dev`, no vite and no site-checker process survives, and both port 1420 and port 1422 are free. The Terminal window was moved aside via a direct Apple Event while native capture was still being attempted and was restored to its original bounds {2645, 409, 3295, 1158}. The caffeinate display assertion was released.",
+    "specs/*/screenshots/ is gitignored in this repo, so the manifest and all PNGs were committed with `git add -f`."
+  ],
+  "app": {
+    "config_dir": "~/Library/Application Support/com.clintparker.site-checker",
+    "config_dir_override": "none - the app resolves this path via app.path().app_config_dir() with no env or CLI override, so seeding necessarily touches the real user file",
+    "backup": true,
+    "backup_mechanism": "sites.json moved aside to sites.json.shots-backup, plus an out-of-tree copy at /tmp/site-checker-REALDATA-safety-after.json; restored and sha256-verified after the run, then the copy deleted",
+    "launch": "pnpm tauri dev from the worktree root, log to /tmp/site-checker-shots-after-dev1.log (outside the checkout). Seed sites.json BEFORE launch - the app reads it once at startup and never re-reads it. The app DID build and start cleanly this run (cargo finished in 3.54s warm, window appeared); the capture failure was environmental (locked screen), not an implementation defect.",
+    "capture_method_used": "Playwright (headless Chromium via the playwright MCP browser) against the Vite dev server, with window.__TAURI_INTERNALS__ stubbed in an addInitScript. page.setViewportSize gives the exact viewport, so no macOS Accessibility grant and no unlocked screen is needed. after/ from localhost:1420 (this worktree); before/*-vite.png from localhost:1422 (primary checkout on main @ f18b947).",
+    "capture_method_profile_default": "screencapture of the native Tauri window - unavailable this run, see notes",
+    "window": {
+      "process_name": "site-checker (dev binary at target/debug/site-checker)",
+      "title": "Site Checker",
+      "bounds_observed": "x=2207 y=268 w=706 h=470 (dev build); the Homebrew release build's window was x=2200 y=263 w=720 h=480"
+    },
+    "window_bounds_helper": "swiftc /tmp/winlist.swift -o /tmp/winlist, printing 'id layer x y w h owner name' from CGWindowListCopyWindowInfo; takes --axprobe to report AXIsProcessTrusted(). Deliberately not committed - recreate it if a later run needs it.",
+    "seed_sites": [
+      {
+        "id": "shots-plain",
+        "url": "https://example.com",
+        "interval_secs": 60,
+        "method_override": null
+      },
+      {
+        "id": "shots-labelled",
+        "url": "https://www.iana.org/help/example-domains",
+        "label": "Labelled Site",
+        "interval_secs": 60,
+        "method_override": null
+      },
+      {
+        "id": "shots-down",
+        "url": "https://down.invalid",
+        "label": "Never Up",
+        "interval_secs": 60,
+        "method_override": null
+      },
+      {
+        "id": "shots-nonhttp",
+        "url": "ftp://ftp.example.com/pub/archive",
+        "label": "Hand-Edited Scheme",
+        "interval_secs": 60,
+        "method_override": null
+      }
+    ],
+    "seed_sites_by_target": {
+      "site-list": "use app.seed_sites above",
+      "site-list-focus": "use app.seed_sites above",
+      "long-url": [
+        {
+          "id": "shots-long",
+          "url": "https://www.example.com/very/long/path/segment/that/keeps/going/and/going?query=parameter&another=value&third=something-quite-long#fragment-too",
+          "interval_secs": 60,
+          "method_override": null
+        },
+        {
+          "id": "shots-long-labelled",
+          "url": "https://subdomain.another-rather-long-hostname.example.org/deeply/nested/resource/identifier/2026/08/13/report.html",
+          "label": "Long URL With Label",
+          "interval_secs": 60,
+          "method_override": null
+        },
+        {
+          "id": "shots-short",
+          "url": "https://example.com",
+          "label": "Short For Contrast",
+          "interval_secs": 60,
+          "method_override": null
+        }
+      ]
+    },
+    "seed_rationale": "The primary seed was chosen to put every rule the spec states about URL rendering into one frame: an unlabelled row (FR-001), a labelled row (FR-008), a Down row to prove status is untouched by the change (FR-010), and an ftp:// row that the scheme guard must render inert (FR-007). The ftp:// entry is exactly the hand-edited-file case the spec's first edge case describes - it cannot be added through the UI, which validates http/https on save.",
+    "autostart_marker": "autostart.initialized left untouched"
+  }
+}

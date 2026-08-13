@@ -20,6 +20,54 @@ const LABEL: Record<"up" | "down" | "pending", string> = {
 };
 
 /**
+ * Whether a site's URL is offered as something that can be opened.
+ *
+ * This is the frontend half of a rule the backend's `openable_url` holds
+ * authoritatively, and it is spelled in both places on purpose — the same
+ * shape of known duplication as the interval floor. Whether a row's URL
+ * renders as a control is a decision taken on every repaint, up to once a
+ * second per row, so it cannot be an IPC round trip; and asking
+ * asynchronously would still be answering a question this synchronous render
+ * needs now. If the two ever drift, the UI offers something the backend then
+ * refuses, which surfaces as a message in the banner rather than as silence.
+ *
+ * FR-007's second sentence makes that drift a defect and not just an
+ * inefficiency: a URL the app will not open must not be *presented* as
+ * activatable. A bare `^https?://` prefix test is not enough to hold it — the
+ * QA run confirmed `https://`, `http://`, `https://[bad` and
+ * `https://exa mple.com` all pass a prefix test, all render as buttons, and are
+ * all refused by the backend. So this asks the platform's own URL parser the
+ * same two questions `openable_url` asks `url::Url`: does it parse, and does it
+ * have a host. `URL` is synchronous and pure, which is what the repaint needs.
+ *
+ * The host is then checked for `%` and whitespace, and that third question is
+ * the one experience had to teach. Engines disagree about a *forbidden*
+ * character in the host: Rust's `url` refuses `https://exa mple.com`, and
+ * Chromium's forgiving host parser instead percent-encodes it into the host as
+ * `exa%20mple.com` and reports success. Delegating the whole verdict to `URL`
+ * therefore makes this function's answer depend on which engine is hosting it —
+ * and this app ships in neither of the two it gets tested in, but in WKWebView.
+ * A real host never contains a `%` or a space, so rejecting those closes the
+ * gap the same way in every engine. It deliberately looks at the parsed `host`
+ * and not at the whole string, so a legitimate space in a *path*
+ * (`https://example.com/a b`, which the add form accepts and the backend opens)
+ * is left alone.
+ */
+export function isOpenable(url: string): boolean {
+  const trimmed = url.trim();
+  // Cheap scheme test first: it is the only question for the common refusal
+  // (a hand-edited `ftp://` entry) and it keeps a non-http scheme from ever
+  // reaching the parser.
+  if (!/^https?:\/\//i.test(trimmed)) return false;
+  try {
+    const { host } = new URL(trimmed);
+    return host !== "" && !/[%\s]/.test(host);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Reconciles `tbody`'s `<tr>` children against `rows`, keyed by `row.site.id`,
  * instead of tearing the table down and rebuilding it every call. This runs
  * once a second from `main.ts`'s repaint timer, and element identity has to
@@ -63,10 +111,7 @@ function renderRow(row: Row, now: number): HTMLTableRowElement {
 
   const name = document.createElement("td");
   name.className = "site";
-  name.append(text("span", "site-primary", row.site.label ?? row.site.url));
-  if (row.site.label) {
-    name.append(text("span", "site-secondary", row.site.url));
-  }
+  name.append(...nameChildren(row.site));
 
   const status = document.createElement("td");
   status.className = "status";
@@ -118,20 +163,83 @@ function updateRow(tr: HTMLTableRowElement, row: Row, now: number): HTMLTableRow
   return tr;
 }
 
-function updateName(name: HTMLElement, site: Site): void {
-  const primary = name.children[0] as HTMLElement;
-  setClass(primary, "site-primary");
-  setText(primary, site.label ?? site.url);
+/** The name cell's children, in order. The URL takes the primary line when
+ *  there is no label and the secondary one when there is; the label itself is
+ *  never a control, so clicking it does nothing. An address that cannot be
+ *  opened is shown as plain text in whichever slot it occupies — present and
+ *  readable, but not offered as activatable and not in the tab order. */
+function nameChildren(site: Site): HTMLElement[] {
+  const slot = site.label ? "site-secondary" : "site-primary";
+  const url = urlElement(slot, site.url);
+  return site.label ? [text("span", "site-primary", site.label), url] : [url];
+}
 
-  const secondary = name.children[1] as HTMLElement | undefined;
-  if (site.label) {
-    if (secondary) {
-      setText(secondary, site.url);
-    } else {
-      name.append(text("span", "site-secondary", site.url));
-    }
-  } else if (secondary) {
-    secondary.remove();
+function urlElement(slot: string, url: string): HTMLElement {
+  return isOpenable(url) ? urlButton(slot, url) : text("span", slot, url);
+}
+
+/** A `<button type="button">`, not an `<a href>`. An anchor is the more
+ *  semantic element and would get keyboard activation free, but it carries a
+ *  URL this webview can follow on a middle-click, a Cmd-click, or any path
+ *  where the JS handler did not run — and navigating the dashboard away from
+ *  itself is unrecoverable. A button has nothing to navigate to. The cost is
+ *  that assistive technology announces "button" rather than "link".
+ *
+ *  `data-open-url`, deliberately not `data-action`: `form.ts`'s row listener
+ *  matches `.closest("[data-action]")`, so keying this control on a different
+ *  attribute is what makes activating a URL structurally unable to reach a
+ *  row's Edit or Delete — rather than a convention someone has to remember.
+ *  The attribute carries the whole stored address no matter how much of it the
+ *  cell ends up rendering, which is what makes truncation and wrapping
+ *  irrelevant to what actually opens. */
+function urlButton(slot: string, url: string): HTMLButtonElement {
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = `${slot} site-url`;
+  el.dataset.openUrl = url;
+  el.textContent = url;
+  return el;
+}
+
+function updateName(name: HTMLElement, site: Site): void {
+  const hadLabel = name.children.length > 1;
+  const hasLabel = Boolean(site.label);
+
+  // Adding or removing a label moves the URL between the primary and the
+  // secondary slot, so the node holding it changes role — and, when the URL is
+  // openable, element type, which the DOM cannot do in place. Rebuilding the
+  // cell's two children is the honest way to say that. It does not weaken the
+  // never-recreate rule the rest of this file keeps: a label only changes on a
+  // user-initiated save, which has already left the row, so no hover or focus
+  // is in progress on what is being replaced. A repaint never gets here.
+  if (hadLabel !== hasLabel) {
+    name.replaceChildren(...nameChildren(site));
+    return;
+  }
+
+  const slot = hasLabel ? "site-secondary" : "site-primary";
+  const urlEl = name.children[hasLabel ? 1 : 0] as HTMLElement;
+
+  if (hasLabel) {
+    const label = name.children[0] as HTMLElement;
+    setClass(label, "site-primary");
+    setText(label, site.label!);
+  }
+
+  // An edit can turn an address that could not be opened into one that can
+  // (never the other way round — `update_site` normalizes, so a non-http
+  // scheme cannot be saved). That is an element-type change, so the node is
+  // replaced rather than mutated.
+  const openable = isOpenable(site.url);
+  if (openable !== urlEl.hasAttribute("data-open-url")) {
+    urlEl.replaceWith(urlElement(slot, site.url));
+    return;
+  }
+
+  setClass(urlEl, openable ? `${slot} site-url` : slot);
+  setText(urlEl, site.url);
+  if (openable && urlEl.dataset.openUrl !== site.url) {
+    urlEl.dataset.openUrl = site.url;
   }
 }
 

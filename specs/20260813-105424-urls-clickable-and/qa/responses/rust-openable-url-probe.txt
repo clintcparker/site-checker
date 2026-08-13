@@ -1,0 +1,24 @@
+--- FR-002/FR-006: http & https accepted, returned byte-identical ---
+QA TC-101 plain https | input="https://example.com" | OK returned="https://example.com" | byte_identical=true
+QA TC-101 http | input="http://example.com" | OK returned="http://example.com" | byte_identical=true
+QA TC-101 uppercase scheme | input="HTTPS://example.com" | OK returned="HTTPS://example.com" | byte_identical=true
+QA TC-102 long url | input="https://www.example.com/very/long/path/segment/that/keeps/going/and/going?query=parameter&another=value&third=something-quite-long#fragment-too" | OK returned="https://www.example.com/very/long/path/segment/that/keeps/going/and/going?query=parameter&another=value&third=something-quite-long#fragment-too" | byte_identical=true
+QA TC-102 trailing-slash trap | input="https://example.com" | OK returned="https://example.com" | byte_identical=true
+--- FR-007: non-http/https refused before any spawn ---
+QA TC-103 ftp | input="ftp://ftp.example.com/pub/archive" | ERR Only http and https addresses can be opened, and this one uses "ftp". Nothing was opened.
+QA TC-103 file | input="file:///etc/passwd" | ERR Only http and https addresses can be opened, and this one uses "file". Nothing was opened.
+QA TC-103 javascript | input="javascript:alert(1)" | ERR Only http and https addresses can be opened, and this one uses "javascript". Nothing was opened.
+QA TC-103 mailto | input="mailto:me@example.com" | ERR Only http and https addresses can be opened, and this one uses "mailto". Nothing was opened.
+QA TC-103 scheme-less | input="example.com" | ERR "example.com" is not a complete web address, so it cannot be opened. Edit the site to give it an http:// or https:// address.
+QA TC-103 empty | input="" | ERR This site has no address, so there is nothing to open.
+--- R001 regression: whitespace-padded stored address ---
+QA TC-104 padded | input="  https://example.com  " | OK returned="  https://example.com  " | byte_identical=true
+QA TC-104 leading space only | input=" https://example.com" | OK returned=" https://example.com" | byte_identical=true
+--- R002 regression: hostless / malformed ---
+QA TC-105 https-no-host | input="https://" | ERR "https://" is not a complete web address, so it cannot be opened. Edit the site to give it an http:// or https:// address.
+QA TC-105 http-no-host | input="http://" | ERR "http://" is not a complete web address, so it cannot be opened. Edit the site to give it an http:// or https:// address.
+QA TC-105 bad bracket | input="https://[bad" | ERR "https://[bad" is not a complete web address, so it cannot be opened. Edit the site to give it an http:// or https:// address.
+QA TC-105 space in host | input="https://exa mple.com" | ERR "https://exa mple.com" is not a complete web address, so it cannot be opened. Edit the site to give it an http:// or https:// address.
+test model::qa_probe::qa_scenarios ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 100 filtered out; finished in 0.00s
