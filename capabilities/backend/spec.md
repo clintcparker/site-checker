@@ -259,6 +259,55 @@ A URL SHALL be validated before a site is created or updated, and SHALL be rejec
 - **WHEN** the URL is blank or cannot be parsed
 - **THEN** it is rejected with a message naming the problem
 
+### A site's address can be opened in whatever browser the user already prefers
+
+The backend SHALL be able to hand a site's stored address to the operating system to open, in the user's own default browser, and SHALL NOT offer a choice of browser or a way to open anything other than a site's address. The address SHALL be passed on exactly as stored — never trimmed, re-serialized, or re-normalized on the way — so what opens is the address the user saved and not a rewriting of it.
+
+This SHALL be done through the system's own opening facility, invoked by a path that does not depend on the environment the app inherited, and SHALL wait for the system to accept or refuse the address. Firing and forgetting would report success as soon as the facility itself was found, which cannot tell "the browser is opening" from "nothing on this machine handles web addresses" — and the UI has something to say about the second.
+
+Opening SHALL NOT block the rest of the app while it waits: this is a control the user can activate repeatedly, alongside a display that repaints every second.
+
+Opening an address SHALL read and write no file, hold no lock, and touch neither the site list nor the schedule, so it cannot alter a site's stored data, its next check, or its state.
+
+#### Scenario: a web address is opened
+- **WHEN** a stored http or https address is handed over to be opened
+- **THEN** the system is asked to open exactly that address, unchanged
+- **AND** the app remains responsive while the system decides
+
+#### Scenario: nothing on the system will open it
+- **WHEN** the system refuses the address
+- **THEN** the refusal is reported in the system's own words rather than a guess
+- **AND** nothing about the site is changed
+
+#### Scenario: the request never reaches the system
+- **WHEN** the opening facility cannot be started at all
+- **THEN** the failure is reported, naming that the address could not be handed over
+
+### Only a web address is ever opened, and a stored one is never repaired to make it openable
+
+Before anything is handed to the system, the address SHALL be checked, and only web schemes SHALL pass. An address that does not pass MUST be refused with a message naming why, and nothing SHALL be started.
+
+This check is deliberately **not** the one applied to what the user types. That one *repairs*: it trims, it supplies a missing scheme, it lowercases the scheme. This one repairs nothing — it is handed a value that is already stored, possibly edited into the saved file by hand, and either passes it through byte-identical or refuses it. A bare hostname is accepted and completed on entry; here it is refused. Supplying a scheme to a stored value would mean opening an address the user never approved.
+
+A scheme stored in upper case SHALL pass, since case does not change which scheme it is, and MUST be handed over with its case untouched.
+
+#### Scenario: a stored address uses a non-web scheme
+- **WHEN** the address names a scheme other than the web ones
+- **THEN** it is refused with a message naming that scheme
+- **AND** nothing is started
+
+#### Scenario: a stored address has no scheme
+- **WHEN** the address is a bare hostname
+- **THEN** it is refused rather than completed into a web address
+
+#### Scenario: a stored address is blank or unparseable
+- **WHEN** there is no address, or it is not a URL
+- **THEN** it is refused with a message saying so
+
+#### Scenario: a stored address carries an upper-case scheme
+- **WHEN** the scheme is stored in upper or mixed case
+- **THEN** it is accepted and handed over exactly as stored, with no trailing path added and no case changed
+
 ### Launch-at-login is on by default, but turning it off sticks
 
 Launching at login SHALL be enabled once, on first run only, and a later deliberate opt-out MUST survive restarts. First run MUST be distinguished from "the user turned this off", and that distinction MUST be recorded even if enabling failed — otherwise a failure would re-enable the setting on every subsequent launch. Being *unable* to register at all SHALL be treated exactly as a refusal is: the same one-line warning, and the same recording of the attempt.

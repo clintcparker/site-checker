@@ -61,6 +61,101 @@ The reason a site is down SHALL be reachable without adding a column or crowding
 - **WHEN** a later status carries no reason
 - **THEN** the previous explanation is removed entirely
 
+### A row's address is the control that visits the site
+
+The address shown in a row SHALL be activatable, and activating it SHALL open that site in the user's default browser. Visiting a listed site is otherwise a copy, a switch, and a paste; this is the same intention in one action.
+
+Activating it MUST NOT navigate the dashboard itself anywhere. That is unrecoverable — this window has no way back — so the control SHALL be one that carries nothing for the window to follow, under any modifier, any middle-click, and any path where the script did not run. The cost, accepted deliberately, is that assistive technology announces it as a button rather than as a link.
+
+The address SHALL be identifiable as openable before it is activated, and the whole stored address SHALL be what opens regardless of how much of it the row displays.
+
+A row's address control MUST be keyed on something the row's own edit and delete controls cannot match, so activating an address can never reach them. This is structural, not a convention to be remembered.
+
+#### Scenario: a listed site's address is activated
+- **WHEN** the user activates the address shown in a row
+- **THEN** that exact address opens in the default browser
+- **AND** the dashboard still shows the table, still updating
+
+#### Scenario: the address is longer than the row shows
+- **WHEN** the displayed address is wrapped or shortened
+- **THEN** activating it still opens the whole stored address
+
+#### Scenario: the pointer rests on the address
+- **WHEN** the user hovers the address without activating it
+- **THEN** it reads as something that can be opened
+
+#### Scenario: a row's other controls are used
+- **WHEN** the user activates a row's edit or delete control
+- **THEN** nothing is opened
+
+### A labelled site shows its label as text and its address as the control
+
+Where a site has a label, the label SHALL be the row's primary line and the address the secondary one; where it has none, the address SHALL be the primary line. The label itself SHALL never be activatable — it names the site, it does not identify a destination.
+
+Adding or removing a label moves the address between those two lines, changing which element holds it. That transition MAY rebuild the row's name cell, which is not an exception to the repaint rule: a label only changes on a save the user just made, never on a repaint.
+
+#### Scenario: a site has a label
+- **WHEN** a labelled row is displayed
+- **THEN** the label is the primary line and is inert
+- **AND** the address beneath it is the control
+
+#### Scenario: the label is clicked
+- **WHEN** the user clicks a row's label
+- **THEN** nothing opens
+
+#### Scenario: a label is added to a site
+- **WHEN** a site gains or loses its label
+- **THEN** the address moves between the primary and secondary line and remains activatable
+
+### An address the app will not open is shown, but never offered
+
+An address that is not a web address SHALL be displayed as ordinary text: not underlined, not reachable by keyboard, and not announced as something that can be acted on. It MUST NOT be hidden, flagged as invalid, or repaired — it is shown as it is stored, simply without an affordance the app cannot honour.
+
+> **Known duplication.** Which addresses may be opened is decided in two places: here, to choose how a row renders, and in the backend, which is authoritative and refuses anything else. It is not fetched from the backend because it is a rendering decision taken on every repaint, once a second per row. Should the two ever disagree, the UI would offer something the backend then refuses — which surfaces as a visible message rather than as silence.
+
+#### Scenario: a saved address uses a non-web scheme
+- **WHEN** a row's stored address is not a web address
+- **THEN** it appears as plain text with no affordance
+- **AND** it is skipped when tabbing through the row
+
+#### Scenario: such an address is clicked
+- **WHEN** the user clicks it anyway
+- **THEN** nothing happens
+
+### Everything reachable by pointer in a row is reachable by keyboard
+
+The address control SHALL take focus in the row's own reading order, ahead of that row's action controls, and SHALL activate from the keyboard exactly as it does from a click. Keyboard focus SHALL be visibly indicated when it arrives that way, and only that way — a mouse click MUST NOT leave an indicator behind.
+
+Because the table repaints every second, focus on the address control MUST survive a repaint, under the same reconciliation rule the rest of the table follows.
+
+#### Scenario: the user tabs through a row
+- **WHEN** focus moves through a row
+- **THEN** the address takes focus before that row's edit and delete controls, with a visible indication
+
+#### Scenario: the focused address is activated
+- **WHEN** the user activates the focused address from the keyboard
+- **THEN** the same site opens as a click would have opened
+
+#### Scenario: a repaint occurs while the address has focus
+- **WHEN** a status arrives, or the age counters tick, while the address holds focus
+- **THEN** focus stays where it was
+
+### Repeated rapid activations of one address open it once
+
+Activating the same address again within a short window SHALL be treated as impatience rather than as a request for a second browser window, and suppressed. The window is per address: two different sites activated in quick succession are two intentional visits. A *suppressed* activation MUST NOT extend the window, or someone drumming on the control would push it ahead of themselves indefinitely and never open the site at all.
+
+#### Scenario: the address is double-clicked
+- **WHEN** the user activates one address twice in quick succession
+- **THEN** the site is opened once
+
+#### Scenario: two different sites are activated in a row
+- **WHEN** the user activates one address and then another immediately
+- **THEN** both are opened
+
+#### Scenario: the same site is deliberately revisited
+- **WHEN** the user activates the same address again after the window has passed
+- **THEN** it opens again
+
 ### One form serves both adding and editing
 
 Adding and editing SHALL use a single form that switches modes, so there is one place to type and one set of rules. Entering edit mode SHALL pre-fill the site's current values and offer a way out; completing or cancelling SHALL return the form to its add state.
@@ -92,7 +187,9 @@ When the backend rejects a change, the message SHALL be shown to the user near t
 
 ### Non-fatal backend problems are visible without blocking use
 
-Warnings that do not stop the app — a site list that could not be read, a save that did not reach disk — SHALL be surfaced in a persistent notice rather than a modal, both when reported at startup and when they occur later. The app stays usable throughout.
+Warnings that do not stop the app — a site list that could not be read, a save that did not reach disk, a site that could not be opened — SHALL be surfaced in a persistent notice rather than a modal, both when reported at startup and when they occur later. The app stays usable throughout.
+
+A failure to open a site belongs in that notice and NOT beside the form: it is not about anything the user typed, and there is nothing in the form to correct.
 
 #### Scenario: the saved list could not be read at startup
 - **WHEN** the app starts and reports a load warning
@@ -101,6 +198,11 @@ Warnings that do not stop the app — a site list that could not be read, a save
 #### Scenario: a save fails during use
 - **WHEN** a write failure is reported while the app is running
 - **THEN** the notice appears without interrupting the current interaction
+
+#### Scenario: a site cannot be opened
+- **WHEN** opening a site is refused
+- **THEN** the reason appears in the notice rather than beside the form
+- **AND** the table keeps updating and every other action still works
 
 ### The login-item control reflects the system, not the click
 
