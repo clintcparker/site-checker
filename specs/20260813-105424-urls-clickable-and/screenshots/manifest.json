@@ -1,0 +1,106 @@
+{
+  "feature": "20260813-105424-urls-clickable-and",
+  "branch": "20260813-105424-urls-clickable-and",
+  "mode_last_run": "before",
+  "baseline": "available",
+  "targets": [
+    {
+      "slug": "site-list",
+      "why": "The main site table is the entire surface this feature changes. The baseline shows all four cases the spec turns on, rendered as inert text: an unlabelled row whose URL is the primary line (FR-001), a labelled row whose URL sits beneath the label (FR-008), and a hand-edited ftp:// entry that must stay inert after the change (FR-007). Critically it shows that no URL is visually distinguishable as activatable today, which is the FR-004 before-state."
+    },
+    {
+      "slug": "long-url",
+      "why": "FR-006 requires the full stored URL to open regardless of how much of it is visible, and the spec's edge cases call out the narrow site column. The baseline shows long URLs wrapping onto two lines and pushing the Edit/Delete actions past the right edge of the window. The after shot must show the activatable affordance covering the whole wrapped address and not making that overflow worse."
+    }
+  ],
+  "viewports": {
+    "default": "720x480",
+    "narrow": "480x320"
+  },
+  "viewports_captured": [
+    "default"
+  ],
+  "notes": [
+    "Feature identity resolved from .specify/run-context.json found in the worktree /Users/clint/src/clintcparker/site-checker--20260813-105424-urls-clickable-and (the only run-context.json under /Users/clint/src/clintcparker). It was NOT present in the primary checkout or in $SPECIFY_INIT_DIR, which was unset. The primary checkout was standing on main at f18b947, so inferring the feature from the branch would have named the previous feature.",
+    "This is a true pre-implementation baseline: the branch's diff against main is spec/plan/tasks documentation only, with no change under src/ or src-tauri/. The captured app is therefore the same code as target branch main.",
+    "UI-relevance: YES. The feature changes how each site's URL renders in the table (activatable affordance, hover, focus) which falls squarely inside the profile's ui_surface (src/, index.html).",
+    "VIEWPORT GAP - the narrow 480x320 viewport was NOT captured. macOS Accessibility was refused to this run: System Events could enumerate processes (Automation is granted) but every window-level call failed with 'osascript is not allowed assistive access' (-1719/-1728), and synthetic keystrokes failed separately with error 1002. The known workaround for a refused osascript AX grant is a COMPILED Swift helper, which has been AX-trusted in past runs of this repo even when the interpreter was not; that was explicitly tested here and AXIsProcessTrusted() returned FALSE from a compiled binary too, so AXUIElementSetAttributeValue(kAXSizeAttribute) was not available either. No window manager (yabai/Rectangle/Amethyst) is installed as an alternative. Resizing was therefore genuinely impossible, not merely untried - an after run should re-probe rather than assume the same. The window's natural size is the 720x480 default from tauri.conf.json, so the 'default' viewport was capturable as-is. Not fabricated, not cropped to fake a reflow.",
+    "STATE GAP - hover and keyboard-focus states were NOT captured for the same reason: driving the pointer or the keyboard needs the Accessibility permission that was refused (CGEvent posting requires the same grant that AXIsProcessTrusted() reported false). FR-004's hover affordance and FR-005's focus ring therefore have no paired baseline image. Both are absence-of-affordance states today, so the 'after' shots stand on their own; if the after run has full Accessibility, capture them there and record baseline as unavailable for those two states specifically.",
+    "Screen Recording WAS granted this run - screencapture wrote real, non-blank images, verified by reading them back. The profile's VS Code tunnel blank-image failure mode did not occur.",
+    "Capture method deviation: 'screencapture -l <windowid>' produced a downscaled 287x191 thumbnail rather than a 1:1 image, so the profile's '-R x,y,w,h' region form was used instead against bounds read from CGWindowListCopyWindowInfo. System Events could not supply the bounds (see the viewport gap note), so a small Swift helper over CoreGraphics was compiled to /tmp to read window id, position and size. Display is a single 1x 5120x1440 panel, so 720x480 points captured as exactly 720x480 pixels. A region capture grabs whatever occupies that rect, so an occluding window can silently substitute itself for the app; both committed images were read back and visually confirmed to show the Site Checker window with the expected seeded rows before the run was reported.",
+    "Both images were captured with the app window frontmost so the pair is visually consistent; an earlier unfocused site-list capture was discarded and retaken.",
+    "PRE-EXISTING STALE BACKUP - on entry the config dir already held a sites.json.shots-backup dated Aug 10 alongside a seeded sites.json dated Aug 13 11:15, i.e. an earlier invocation of this same skill for this same feature seeded the file and died before restoring. The Aug 10 backup was the user's genuine data (6 real sites) and was verified byte-identical to that run's out-of-tree copy /tmp/site-checker-sites-20260813-before-urls.json before anything was touched. It has been restored over sites.json and the backup removed; a third safety copy was taken at /tmp/site-checker-REALDATA-safety.json and the restored file was diffed against it.",
+    "Statuses were allowed to resolve out of Pending before each capture, per the profile. down.invalid and the synthetic long URLs render Down; that is expected and is not a finding.",
+    "specs/*/screenshots/ is gitignored in this repo, so the manifest and both PNGs were committed with 'git add -f'."
+  ],
+  "app": {
+    "config_dir": "~/Library/Application Support/com.clintparker.site-checker",
+    "config_dir_override": "none - the app resolves this path via app.path().app_config_dir() with no env or CLI override, so seeding necessarily touches the real user file",
+    "backup": true,
+    "backup_mechanism": "sites.json moved aside to sites.json.shots-backup, plus an out-of-tree copy at /tmp/site-checker-REALDATA-safety.json; restored and diff-verified after the run",
+    "launch": "pnpm tauri dev from the worktree root, log to /tmp/site-checker-shots-dev*.log (outside the checkout). Seed sites.json BEFORE launch - the app reads it once at startup and never re-reads it, so each target with a different seed needs a full app restart.",
+    "window": {
+      "process_name": "site-checker",
+      "title": "Site Checker",
+      "bounds_at_capture": "x=2200 y=263 w=720 h=480"
+    },
+    "capture_command": "screencapture -x -R <x>,<y>,<w>,<h> <file>",
+    "window_bounds_helper": "swiftc /tmp/winlist.swift -o /tmp/winlist, printing 'id layer x y w h name' from CGWindowListCopyWindowInfo for owners matching site-checker. Recreate it in the after run; it is deliberately not committed.",
+    "seed_sites": [
+      {
+        "id": "shots-plain",
+        "url": "https://example.com",
+        "interval_secs": 60,
+        "method_override": null
+      },
+      {
+        "id": "shots-labelled",
+        "url": "https://www.iana.org/help/example-domains",
+        "label": "Labelled Site",
+        "interval_secs": 60,
+        "method_override": null
+      },
+      {
+        "id": "shots-down",
+        "url": "https://down.invalid",
+        "label": "Never Up",
+        "interval_secs": 60,
+        "method_override": null
+      },
+      {
+        "id": "shots-nonhttp",
+        "url": "ftp://ftp.example.com/pub/archive",
+        "label": "Hand-Edited Scheme",
+        "interval_secs": 60,
+        "method_override": null
+      }
+    ],
+    "seed_sites_by_target": {
+      "site-list": "use app.seed_sites above",
+      "long-url": [
+        {
+          "id": "shots-long",
+          "url": "https://www.example.com/very/long/path/segment/that/keeps/going/and/going?query=parameter&another=value&third=something-quite-long#fragment-too",
+          "interval_secs": 60,
+          "method_override": null
+        },
+        {
+          "id": "shots-long-labelled",
+          "url": "https://subdomain.another-rather-long-hostname.example.org/deeply/nested/resource/identifier/2026/08/13/report.html",
+          "label": "Long URL With Label",
+          "interval_secs": 60,
+          "method_override": null
+        },
+        {
+          "id": "shots-short",
+          "url": "https://example.com",
+          "label": "Short For Contrast",
+          "interval_secs": 60,
+          "method_override": null
+        }
+      ]
+    },
+    "seed_rationale": "The primary seed was chosen to put every rule the spec states about URL rendering into one frame: an unlabelled row (FR-001), a labelled row (FR-008), a Down row to prove status is untouched by the change (FR-010), and an ftp:// row that the scheme guard must render inert (FR-007). The ftp:// entry is exactly the hand-edited-file case the spec's first edge case describes - it cannot be added through the UI, which validates http/https on save.",
+    "autostart_marker": "autostart.initialized left untouched"
+  }
+}
