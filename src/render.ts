@@ -20,6 +20,22 @@ const LABEL: Record<"up" | "down" | "pending", string> = {
 };
 
 /**
+ * Whether a site's URL is offered as something that can be opened.
+ *
+ * This is the frontend half of a rule the backend's `openable_url` holds
+ * authoritatively, and it is spelled in both places on purpose — the same
+ * shape of known duplication as the interval floor. Whether a row's URL
+ * renders as a control is a decision taken on every repaint, up to once a
+ * second per row, so it cannot be an IPC round trip; and asking
+ * asynchronously would still be answering a question this synchronous render
+ * needs now. If the two ever drift, the UI offers something the backend then
+ * refuses, which surfaces as a message in the banner rather than as silence.
+ */
+export function isOpenable(url: string): boolean {
+  return /^https?:\/\//i.test(url.trim());
+}
+
+/**
  * Reconciles `tbody`'s `<tr>` children against `rows`, keyed by `row.site.id`,
  * instead of tearing the table down and rebuilding it every call. This runs
  * once a second from `main.ts`'s repaint timer, and element identity has to
@@ -63,10 +79,7 @@ function renderRow(row: Row, now: number): HTMLTableRowElement {
 
   const name = document.createElement("td");
   name.className = "site";
-  name.append(text("span", "site-primary", row.site.label ?? row.site.url));
-  if (row.site.label) {
-    name.append(text("span", "site-secondary", row.site.url));
-  }
+  name.append(...nameChildren(row.site));
 
   const status = document.createElement("td");
   status.className = "status";
@@ -118,20 +131,83 @@ function updateRow(tr: HTMLTableRowElement, row: Row, now: number): HTMLTableRow
   return tr;
 }
 
-function updateName(name: HTMLElement, site: Site): void {
-  const primary = name.children[0] as HTMLElement;
-  setClass(primary, "site-primary");
-  setText(primary, site.label ?? site.url);
+/** The name cell's children, in order. The URL takes the primary line when
+ *  there is no label and the secondary one when there is; the label itself is
+ *  never a control, so clicking it does nothing. An address that cannot be
+ *  opened is shown as plain text in whichever slot it occupies — present and
+ *  readable, but not offered as activatable and not in the tab order. */
+function nameChildren(site: Site): HTMLElement[] {
+  const slot = site.label ? "site-secondary" : "site-primary";
+  const url = urlElement(slot, site.url);
+  return site.label ? [text("span", "site-primary", site.label), url] : [url];
+}
 
-  const secondary = name.children[1] as HTMLElement | undefined;
-  if (site.label) {
-    if (secondary) {
-      setText(secondary, site.url);
-    } else {
-      name.append(text("span", "site-secondary", site.url));
-    }
-  } else if (secondary) {
-    secondary.remove();
+function urlElement(slot: string, url: string): HTMLElement {
+  return isOpenable(url) ? urlButton(slot, url) : text("span", slot, url);
+}
+
+/** A `<button type="button">`, not an `<a href>`. An anchor is the more
+ *  semantic element and would get keyboard activation free, but it carries a
+ *  URL this webview can follow on a middle-click, a Cmd-click, or any path
+ *  where the JS handler did not run — and navigating the dashboard away from
+ *  itself is unrecoverable. A button has nothing to navigate to. The cost is
+ *  that assistive technology announces "button" rather than "link".
+ *
+ *  `data-open-url`, deliberately not `data-action`: `form.ts`'s row listener
+ *  matches `.closest("[data-action]")`, so keying this control on a different
+ *  attribute is what makes activating a URL structurally unable to reach a
+ *  row's Edit or Delete — rather than a convention someone has to remember.
+ *  The attribute carries the whole stored address no matter how much of it the
+ *  cell ends up rendering, which is what makes truncation and wrapping
+ *  irrelevant to what actually opens. */
+function urlButton(slot: string, url: string): HTMLButtonElement {
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = `${slot} site-url`;
+  el.dataset.openUrl = url;
+  el.textContent = url;
+  return el;
+}
+
+function updateName(name: HTMLElement, site: Site): void {
+  const hadLabel = name.children.length > 1;
+  const hasLabel = Boolean(site.label);
+
+  // Adding or removing a label moves the URL between the primary and the
+  // secondary slot, so the node holding it changes role — and, when the URL is
+  // openable, element type, which the DOM cannot do in place. Rebuilding the
+  // cell's two children is the honest way to say that. It does not weaken the
+  // never-recreate rule the rest of this file keeps: a label only changes on a
+  // user-initiated save, which has already left the row, so no hover or focus
+  // is in progress on what is being replaced. A repaint never gets here.
+  if (hadLabel !== hasLabel) {
+    name.replaceChildren(...nameChildren(site));
+    return;
+  }
+
+  const slot = hasLabel ? "site-secondary" : "site-primary";
+  const urlEl = name.children[hasLabel ? 1 : 0] as HTMLElement;
+
+  if (hasLabel) {
+    const label = name.children[0] as HTMLElement;
+    setClass(label, "site-primary");
+    setText(label, site.label!);
+  }
+
+  // An edit can turn an address that could not be opened into one that can
+  // (never the other way round — `update_site` normalizes, so a non-http
+  // scheme cannot be saved). That is an element-type change, so the node is
+  // replaced rather than mutated.
+  const openable = isOpenable(site.url);
+  if (openable !== urlEl.hasAttribute("data-open-url")) {
+    urlEl.replaceWith(urlElement(slot, site.url));
+    return;
+  }
+
+  setClass(urlEl, openable ? `${slot} site-url` : slot);
+  setText(urlEl, site.url);
+  if (openable && urlEl.dataset.openUrl !== site.url) {
+    urlEl.dataset.openUrl = site.url;
   }
 }
 

@@ -10,6 +10,7 @@ import {
 } from "./api";
 import { renderTable, type Row } from "./render";
 import { mountForm } from "./form";
+import { mountUrlOpener } from "./open";
 
 const sites = new Map<string, Site>();
 const statuses = new Map<string, StatusEvent>();
@@ -116,6 +117,11 @@ async function main(): Promise<void> {
     onDeleted: removeSite,
     lookup: (id) => sites.get(id),
   });
+
+  // A failed open is a problem that does not stop anything, so it goes to the
+  // banner rather than the form's error line — nothing about it is about what
+  // the user typed.
+  mountUrlOpener(tbody, { onError: showBanner });
 
   await mountAutostart();
 

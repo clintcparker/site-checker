@@ -42,6 +42,37 @@ td {
   vertical-align: middle;
 }
 
+/* The row's URL is a <button>, so this strips the native button chrome until
+   it reads as the line of text it replaced.
+
+   It is declared BEFORE .site-secondary on purpose. A URL button carries both
+   classes, they have equal specificity, and `font: inherit` here would
+   otherwise beat `.site-secondary`'s `font-size: 12px` and make a labelled
+   row's URL jump to the primary line's size. Moving this rule below that one
+   is a visible regression with no test to catch it.
+
+   `display: block` matches .site-primary/.site-secondary, and `text-align:
+   left` undoes a button's centred text — without it the URL would sit visibly
+   out of line with every other cell. */
+.site-url {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  display: block;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* `:focus-visible`, not `:focus`: a mouse click must not leave a ring behind. */
+.site-url:focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .site-primary {
   display: block;
 }

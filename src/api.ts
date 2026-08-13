@@ -70,3 +70,11 @@ export function getAutostart(): Promise<boolean> {
 export function setAutostart(enabled: boolean): Promise<boolean> {
   return invoke("set_autostart", { enabled });
 }
+
+// `url` is a single lowercase word, so the camelCase conversion noted above is
+// a no-op on it. The value is passed verbatim — the backend refuses what it
+// will not open rather than repairing it, so trimming or re-normalizing here
+// would change which address actually opens.
+export function openUrl(url: string): Promise<void> {
+  return invoke("open_url", { url });
+}
