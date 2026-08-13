@@ -1,16 +1,5 @@
 # Backend — Living Spec
 
-> [DRAFT] Surface-first draft from existing code — every requirement is observed from the code surface unless tagged otherwise. Review before trusting.
->
-> **Status, 2026-08-11:** still unreviewed, and now tracked as
-> [#23](https://github.com/clintcparker/site-checker/issues/23) rather than sitting here
-> unexplained. Read as a description of what the code *does*, not authority for what it *should*.
-> The "Known deviation" below was a real defect and was filed as
-> [#22](https://github.com/clintcparker/site-checker/issues/22) — it had been recorded here
-> accurately since the draft was written and never surfaced, which is the whole argument for
-> doing the review. **Update, 2026-08-13:** #22 is fixed and closed; the interval-floor
-> requirement below now holds on every path and its deviation note has been retired.
-
 ## Purpose
 
 Answers "is this thing up, and how long ago did we last confirm that?" for a personal list of sites, and keeps answering it unattended. It owns the site list and its durability, decides what counts as up, and schedules the checks. Without it the app has nothing to show and no memory between launches — and, done carelessly, it would hammer other people's servers on the user's behalf.
@@ -129,7 +118,7 @@ The HTTP client SHALL be a polite, ordinary-looking browser client with a bounde
 
 #### Scenario: a site sits behind a filtering proxy
 - **WHEN** a check is made
-- **THEN** the client presents itself as a common browser rather than an unknown tool [inferred] — the intent is to avoid being rate-limited or blocked, which the surface states but cannot demonstrate
+- **THEN** the client presents itself as a common browser rather than an unknown tool — the intent is to avoid being rate-limited or blocked, which the surface states but cannot demonstrate
 
 ### A damaged site list never prevents the app from starting
 
