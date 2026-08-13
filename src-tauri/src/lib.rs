@@ -1,3 +1,4 @@
+mod autostart;
 mod check;
 mod commands;
 mod engine;
@@ -8,7 +9,6 @@ mod store;
 use std::sync::Mutex;
 
 use tauri::Manager;
-use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 use commands::AppState;
 use engine::Engine;
@@ -17,11 +17,13 @@ use lock::SharedStore;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_autostart::init(
-            MacosLauncher::LaunchAgent,
-            Some(vec![]),
-        ))
         .setup(|app| {
+            // Owned rather than left to tauri-plugin-autostart, which always
+            // records `current_exe()` — the version-scoped Cellar path on a
+            // Homebrew install, which the next `brew upgrade` deletes.
+            let autolaunch = autostart::manager(app.handle())?;
+            app.manage(autolaunch);
+
             // ~/Library/Application Support/com.clintparker.site-checker/
             let path = app.path().app_config_dir()?.join("sites.json");
             let loaded = store::load(path);
@@ -44,7 +46,7 @@ pub fn run() {
             // unchecking the box sticks across restarts.
             let marker = app.path().app_config_dir()?.join("autostart.initialized");
             if !marker.exists() {
-                if let Err(e) = app.autolaunch().enable() {
+                if let Err(e) = app.state::<auto_launch::AutoLaunch>().enable() {
                     // Store-load warning takes precedence if one already
                     // occurred; don't clobber it with the less-critical
                     // autostart message.
@@ -59,6 +61,22 @@ pub fn run() {
                     let _ = std::fs::create_dir_all(parent);
                 }
                 let _ = std::fs::write(&marker, b"");
+            }
+
+            // Correct a registration left behind by an earlier version, which
+            // recorded the version-scoped Cellar path that `brew upgrade` then
+            // deleted. Deliberately after the first-run block: on a genuine
+            // first run enable() has just written the desired path, so this
+            // finds nothing to do. It cannot create or remove a registration
+            // and cannot fail — a user who turned launch-at-login off stays
+            // off, and startup carries on regardless.
+            if let Ok(home) = app.path().home_dir() {
+                autostart::repair_if_stale(
+                    &app.state::<auto_launch::AutoLaunch>(),
+                    &home
+                        .join("Library/LaunchAgents")
+                        .join(format!("{}.plist", app.package_info().name)),
+                );
             }
 
             app.manage(AppState {

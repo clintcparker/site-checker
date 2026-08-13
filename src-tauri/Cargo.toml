@@ -29,7 +29,10 @@ uuid = { version = "1.24", features = ["v4"] }
 reqwest = { version = "0.13", default-features = false, features = ["default-tls", "http2", "system-proxy", "charset"] }
 tokio = { version = "1", features = ["time", "rt", "macros"] }
 rand = "0.10"
-tauri-plugin-autostart = "2.5"
+# Used directly rather than through tauri-plugin-autostart, which records
+# `current_exe()` and offers no way to record anything else. The plugin was a
+# thin wrapper over this same crate, so the dependency count is unchanged.
+auto-launch = "0.5"
 
 [dev-dependencies]
 tempfile = "3"

@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use tauri::State;
+use tauri::{Manager, State};
 
 use crate::engine::Engine;
 use crate::lock::{self, SharedStore};
@@ -133,18 +133,18 @@ pub fn delete_site(state: State<'_, AppState>, id: String) -> Result<(), String>
     Ok(())
 }
 
-use tauri_plugin_autostart::ManagerExt;
-
 #[tauri::command]
 pub fn get_autostart(app: tauri::AppHandle) -> Result<bool, String> {
-    app.autolaunch().is_enabled().map_err(|e| e.to_string())
+    app.state::<auto_launch::AutoLaunch>()
+        .is_enabled()
+        .map_err(|e| e.to_string())
 }
 
 /// Returns the state actually in effect afterwards, so the checkbox can
 /// correct itself if the OS refused the change.
 #[tauri::command]
 pub fn set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
-    let manager = app.autolaunch();
+    let manager = app.state::<auto_launch::AutoLaunch>();
     let result = if enabled {
         manager.enable()
     } else {
