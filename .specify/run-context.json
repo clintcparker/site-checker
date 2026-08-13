@@ -1,0 +1,7 @@
+{
+  "branch": "20260813-105424-urls-clickable-and",
+  "feature_dir": "specs/20260813-105424-urls-clickable-and",
+  "worktree_path": "/Users/clint/src/clintcparker/site-checker--20260813-105424-urls-clickable-and",
+  "reconstructed": true,
+  "reconstructed_reason": "The worktrees extension ships only create-worktree.sh and has no run-context writer, so no run-context.json was ever produced. Rebuilt at the specify step from the unambiguous worktree for this run."
+}
