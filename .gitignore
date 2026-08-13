@@ -45,3 +45,14 @@ specs/*/screenshots/
 specs/*/qa/screenshots/
 specs/*/.spec-context.json
 src-tauri/Site Checker App Icon.zip
+/.playwright-mcp/page-2026-08-13T19-00-24-248Z.yml
+/.playwright-mcp/page-2026-08-13T19-01-10-997Z.yml
+/.playwright-mcp/page-2026-08-13T19-06-50-148Z.yml
+/.playwright-mcp/page-2026-08-13T19-08-57-372Z.yml
+/.playwright-mcp/page-2026-08-13T19-09-40-637Z.yml
+/.playwright-mcp/page-2026-08-13T19-09-53-743Z.yml
+/.playwright-mcp/qa-fr004-fr007-affordance.png
+/.playwright-mcp/qa-fr005-focus-ring.png
+/.playwright-mcp/qa2-fr004-fr007-720.png
+/.playwright-mcp/qa2-fr004-fr007-affordance.png
+/.playwright-mcp/qa2-fr005-focus-ring.png
