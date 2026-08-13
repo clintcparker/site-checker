@@ -279,14 +279,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir assets
+          # Not `assets/` — that path is tracked in this repository (the README
+          # screenshot), so checkout has already created it and a bare `mkdir`
+          # fails. Kept as a plain `mkdir` rather than `-p` so a future
+          # collision with a tracked path fails here instead of silently
+          # rendering a formula against whatever the checkout put there.
+          mkdir release-assets
           for arch in aarch64 x86_64; do
             gh release download "v${VERSION}" \
               --repo "$GITHUB_REPOSITORY" \
               --pattern "site-checker-${arch}-apple-darwin.zip" \
-              --dir assets
+              --dir release-assets
           done
-          ls -l assets
+          ls -l release-assets
 
       # Two guards, both hard failures of the release, catching drift in either
       # direction: a template that gained a placeholder this step does not know
@@ -303,7 +308,7 @@ jobs:
             fi
           done
 
-          sha() { sha256sum "assets/site-checker-$1-apple-darwin.zip" | cut -d' ' -f1; }
+          sha() { sha256sum "release-assets/site-checker-$1-apple-darwin.zip" | cut -d' ' -f1; }
           mkdir rendered
           sed \
             -e "s/SHA256_ARM64/$(sha aarch64)/g" \
