@@ -5,29 +5,66 @@
 # `specify extension add screenshots --force`, so upgrading the extension never
 # clobbers your adaptation.
 #
-# Leave `unconfigured: true` and the command will derive the profile itself on
-# first run, write it back here, and note in the manifest that it was
-# auto-generated. Filled-in examples for two very different apps live in
-# examples/ inside this extension.
+# Derived automatically on 2026-08-12 during the `before` capture for
+# 20260812-202608-autostart-launchagent-path, from README.md, package.json,
+# src-tauri/tauri.conf.json, src-tauri/src/lib.rs + store.rs, living-specs.yml,
+# and the extension's own examples/tauri-applescript.yml (which was itself
+# distilled from this repo). Reviewable in that feature's pull request.
 
-unconfigured: true
+unconfigured: false
 
 # Which paths mean "a user can see the difference". Used both to judge
 # UI-relevance from the spec and, in after-mode, as the pathspec for the
 # `git diff` that verifies a SKIPPED.md prediction.
 ui_surface:
-  paths: []
+  paths:
+    - "src"
+    - "index.html"
+    - "src-tauri/tauri.conf.json"
+    - "assets"
   notes: |
-    Describe anything the paths above do not capture — for example a backend
-    change that alters user-visible strings, or a config file that defines the
-    window size.
+    `src/` and `index.html` are the whole frontend (vanilla TS + one stylesheet);
+    `src-tauri/tauri.conf.json` defines the window title and its default/minimum
+    size. `assets/` holds the README screenshot, which is user-visible
+    documentation of the UI.
+
+    These match the `frontend` capability in living-specs.yml, plus the window
+    definition and the doc image.
+
+    Backend-only Rust work under `src-tauri/src/**` is NOT UI — the HTTP
+    classifier, the store, the scheduler, autostart registration — UNLESS it
+    changes something the window renders: a status `reason` string, the shape of
+    the `site-status` event, a startup-warning message, or the state reported by
+    a control such as the "Launch at login" checkbox. Judge that from the spec,
+    not from the path list alone.
+
+    README.md and install/ are documentation, not app UI. A change confined to
+    them is not UI-relevant even though a human reads it.
 
 # How to bring the app up, and how to know it is up.
 launch: |
-  Command, readiness probe, timeout, and any first-run setup (dependency
-  install, cold build). Say how long a cold start may legitimately take.
+  Seed the data file BEFORE launching (see `data`) — the app reads it once at
+  startup and never re-reads it.
 
-# How to get past a sign-in screen. Write "none" if there is none.
+  A fresh worktree has no node_modules: run `pnpm install` first if it is
+  missing. Start `pnpm tauri dev` in the background, capturing stdout+stderr to
+  a log file OUTSIDE the checkout (e.g. under /tmp). The first cold cargo build
+  can take several minutes — allow ~10 min before declaring failure.
+
+  Vite is pinned to port 1420 with strictPort. A dev server leaked by an earlier
+  screenshots/QA run is the single most common failure here: check for a
+  listener on 1420 and kill that process tree BEFORE starting, otherwise you
+  will capture the *previous* run's app.
+
+  The dev window belongs to process `tauri-app` (bundled builds appear as
+  `Site Checker`). Poll System Events until it exists:
+
+      osascript -e 'tell application "System Events" to get position of window 1 of process "tauri-app"'
+
+  Wait a few seconds after launch so Pending resolves to Up/Down before
+  capturing — unless the feature is about the Pending state itself. Note the
+  choice in the manifest.
+
 auth: |
   none
 
@@ -35,23 +72,97 @@ auth: |
 # after-mode reproduces the before-mode baseline. State must never live inside
 # the repo or worktree.
 data: |
-  Describe the state location, the seed procedure, the backup/restore contract
-  for any real user file, and what after-mode should reuse.
+  The app reads
+  ~/Library/Application Support/com.clintparker.site-checker/sites.json
+  (a bare JSON array) at startup, via `app.path().app_config_dir()`. There is NO
+  environment or CLI override for that directory — do not write a QA/screenshot
+  step that assumes one. Seeding therefore means touching the user's REAL file.
+  Protect it:
+
+  - FIRST, before anything else, copy the live sites.json to a safety copy
+    outside this checkout and outside the config dir (e.g.
+    /tmp/site-checker-sites-<runid>.json). The in-place `.shots-backup` below has
+    been observed to go missing when a run dies badly; the out-of-tree copy is
+    what actually saves the user's data.
+  - If sites.json exists and no `sites.json.shots-backup` exists beside it, move
+    it to `sites.json.shots-backup` and record `app.backup: true` in the
+    manifest.
+  - Write the seed file. Use `app.seed_sites` from the manifest if present — mode
+    `after` must reproduce the baseline exactly — otherwise pick 2–4 sites that
+    exercise the states the feature touches and record them. A dependable
+    default:
+
+        [
+          { "id": "shots-up",   "url": "https://example.com",  "label": "Example",  "interval_secs": 60 },
+          { "id": "shots-down", "url": "https://down.invalid", "label": "Never Up", "interval_secs": 60 }
+        ]
+
+    `.invalid` never resolves, so it renders the Down state without waiting on a
+    real outage. Checks hit the real network; every site starts Pending on launch
+    and results are never persisted.
+
+  The sibling `autostart.initialized` marker in the same directory gates the
+  "enable launch-at-login exactly once" behaviour. Leave it alone unless the
+  feature under test is about first-run autostart; if you must remove it, back it
+  up the same way and restore it in cleanup.
+
+  Restoring is MANDATORY in both modes, every run, success or failure — see
+  `cleanup`.
 
 # What counts as a capturable unit here, and how to reach one.
 targets: |
-  Pages, routes, window states, views — and how to navigate to each.
+  Single-window app, so "pages" are views/states of that one window: the main
+  site list, the empty state, the add/edit form, the startup-warning banner —
+  whatever the spec touches. Reach each by driving the app with AppleScript
+  keystrokes/clicks against process `tauri-app`, or by seeding a different
+  sites.json (an empty array gives the empty state).
+
+  Verify you actually reached the intended state by reading the accessibility
+  tree (System Events) before capturing — a keystroke that silently went to
+  another application is the usual reason a screenshot shows the wrong view.
 
 # Label -> WxH. Say in `notes` why these sizes and not others.
 viewports:
-  mobile: "390x844"
-  desktop: "1280x900"
+  default: "720x480"
+  narrow: "480x320"
 
 # How a screenshot is actually taken.
 capture_method: |
-  For example: Playwright viewport screenshots; `screencapture -R x,y,w,h` of a
-  window rect read from System Events; a headless renderer.
+  Resize with System Events:
+
+      set size of window 1 of process "tauri-app" to {W, H}
+
+  then read `position` and `size` and capture just the window with
+  `screencapture -R x,y,w,h <file>` (`-l <windowid>` is fine too if you can get a
+  CGWindowID). 720x480 is the shipped size in tauri.conf.json; 480x320 is the
+  resizable floor (minWidth/minHeight), captured as a layout stress test.
+
+  macOS permissions are the usual blocker and they are granted per *host
+  application*, not per repo:
+
+  - Screen Recording must be granted to the terminal running the agent. A
+    session running inside a VS Code remote/tunnel has been observed to be
+    unable to capture at all — `screencapture` succeeds but writes an empty or
+    blank image. Report that as a skipped capture; do not retry blindly.
+  - Accessibility (for System Events) can be granted for keystrokes but not
+    mouse clicks, or vice versa, and this differs between runs. Probe both
+    cheaply at the start and use whichever works.
+
+  If capture is impossible, record it in the manifest `notes` and continue —
+  never fabricate an image.
 
 # How to stop the app and what to restore, in both modes, success or failure.
 cleanup: |
-  Process-tree caveats, files to restore, directories to delete.
+  Kill the `pnpm tauri dev` process TREE — it spawns vite, cargo and the app.
+  Kill the process group, then verify no `tauri-app` process and no listener on
+  port 1420 survives. A leaked dev server poisons the next run.
+
+  Restore the user's data: if `sites.json.shots-backup` exists, move it back over
+  `sites.json`; otherwise delete the seed `sites.json`. Then confirm the restored
+  file matches the out-of-tree safety copy, and only delete that copy once it
+  does. Do this in BOTH modes, every run, success or failure.
+  `app.seed_sites` in the manifest is what makes the `after` run reproducible —
+  not leftover state.
+
+  Never commit anything outside FEATURE_DIR/screenshots/: no sites.json, no dev
+  server log, no node_modules, no target/.
