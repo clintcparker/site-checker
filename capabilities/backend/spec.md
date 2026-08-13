@@ -5,10 +5,11 @@
 > **Status, 2026-08-11:** still unreviewed, and now tracked as
 > [#23](https://github.com/clintcparker/site-checker/issues/23) rather than sitting here
 > unexplained. Read as a description of what the code *does*, not authority for what it *should*.
-> The "Known deviation" below is a real defect and is now filed as
+> The "Known deviation" below was a real defect and was filed as
 > [#22](https://github.com/clintcparker/site-checker/issues/22) — it had been recorded here
 > accurately since the draft was written and never surfaced, which is the whole argument for
-> doing the review.
+> doing the review. **Update, 2026-08-13:** #22 is fixed and closed; the interval-floor
+> requirement below now holds on every path and its deviation note has been retired.
 
 ## Purpose
 
@@ -52,11 +53,13 @@ Sites SHALL NOT all fire on the same instant merely because they share an interv
 
 A minimum interval SHALL be enforced as a guardrail against hammering an endpoint. Raising a too-small value to the floor is the only correction — a value at or above the floor is never altered. This is a property of *what gets scheduled*, not merely of what the UI submits: any interval that reaches the scheduler MUST already respect the floor, whatever its source.
 
-> **Known deviation — filed as [#22](https://github.com/clintcparker/site-checker/issues/22) on 2026-08-11.** The floor is applied only when a site is added or updated through the command surface. Sites loaded from the saved file at startup are scheduled with whatever interval that file contains, so a hand-edited or corrupted `interval_secs: 0` polls with no delay between requests. The requirement above states the intent; the load path does not yet meet it. *(Verified still true at `e0fe375`: `clamp_interval` is called only from `commands.rs:50` and `commands.rs:114`; `store.rs`'s `load` post-processes only for duplicate ids, and `engine.rs`'s `run_site` collapses both the startup jitter and the per-cycle sleep to zero. Same defect shape as the duplicate-id bug — enforced on add/update, absent on load.)*
+> **Resolved — was [#22](https://github.com/clintcparker/site-checker/issues/22), closed 2026-08-13.** The floor had been applied only on the command surface, so a hand-edited or corrupted `interval_secs: 0` loaded from the saved file polled with no delay between requests. The floor is now enforced on all three paths — the command surface, the load path, and the scheduler itself — so no interval below the floor can reach a request whatever its origin. The scheduler's own clamp is belt-and-braces rather than the enforcement point: it means a future importer or test harness cannot reintroduce the defect by forgetting to clamp first.
 
 #### Scenario: a saved site carries an interval below the floor
 - **WHEN** the stored site list contains an interval under the floor
 - **THEN** it is raised to the floor before that site is scheduled
+- **AND** the user is told how many entries were raised, alongside any other complaint about the same file
+- **AND** the saved file is left as it is, the correction holding for the session only
 
 #### Scenario: a too-frequent interval is requested
 - **WHEN** an interval below the floor is submitted
@@ -269,7 +272,7 @@ A URL SHALL be validated before a site is created or updated, and SHALL be rejec
 
 ### Launch-at-login is on by default, but turning it off sticks
 
-Launching at login SHALL be enabled once, on first run only, and a later deliberate opt-out MUST survive restarts. First run MUST be distinguished from "the user turned this off", and that distinction MUST be recorded even if enabling failed — otherwise a failure would re-enable the setting on every subsequent launch.
+Launching at login SHALL be enabled once, on first run only, and a later deliberate opt-out MUST survive restarts. First run MUST be distinguished from "the user turned this off", and that distinction MUST be recorded even if enabling failed — otherwise a failure would re-enable the setting on every subsequent launch. Being *unable* to register at all SHALL be treated exactly as a refusal is: the same one-line warning, and the same recording of the attempt.
 
 #### Scenario: the very first launch
 - **WHEN** the app runs for the first time
@@ -282,6 +285,11 @@ Launching at login SHALL be enabled once, on first run only, and a later deliber
 #### Scenario: the system refuses to enable it
 - **WHEN** enabling fails on first run
 - **THEN** the user is told, and the app does not retry on every future launch
+
+#### Scenario: registration is impossible on first run
+- **WHEN** the app cannot work out where the running copy lives, so there is nothing to register
+- **THEN** the user is told in the same words a refusal would use, naming that cause
+- **AND** the attempt is recorded, so the next launch does not try again and re-enable a setting the user may since have turned off
 
 ### The launch-at-login registration survives an upgrade
 
@@ -302,6 +310,30 @@ The location recorded for launch-at-login SHALL be one that outlives the install
 #### Scenario: there is no registration, or it cannot be read
 - **WHEN** the app starts and finds no registration, or one not in the shape the app writes
 - **THEN** nothing is created, nothing is changed, no warning is shown, and startup continues normally
+
+#### Scenario: the running copy's location cannot be determined
+- **WHEN** the app cannot work out where the running copy lives, so it has no location to compare against
+- **THEN** the repair is skipped entirely rather than guessed at
+- **AND** any existing registration is left exactly as it is
+
+### Launch-at-login can never stop the app from starting
+
+No part of launch-at-login SHALL be able to prevent startup. Where the running copy lives is discovered at launch and that discovery is fallible — the running copy's own path can be gone from disk while the process is still running, which is exactly what upgrading a package-managed install does. When it cannot be discovered, the app SHALL start with launch-at-login simply unmanaged: nothing registered, nothing changed, nothing removed. Every entry point that would otherwise assume a manager exists MUST report the absence as a message the user can read, and MUST NOT fault.
+
+> **Clarification.** "Unmanaged" is deliberately weaker than "off". The app makes no claim about the login item in this state and touches nothing, so a registration written by an earlier launch keeps working; only this session's ability to read or change it is lost. The condition is not sticky — it is re-decided at every launch, and a launch that can locate itself manages the login item normally again.
+
+#### Scenario: the running copy's path is gone from disk
+- **WHEN** the app starts and cannot resolve where its own executable lives
+- **THEN** startup continues and the site list, its checks, and the window all work as usual
+- **AND** no login item is created, changed, or removed
+
+#### Scenario: the setting is read while unmanaged
+- **WHEN** the current launch-at-login state is asked for and there is no manager
+- **THEN** the request fails with a message naming the cause, rather than the app faulting
+
+#### Scenario: the setting is changed while unmanaged
+- **WHEN** the user tries to turn launch-at-login on or off and there is no manager
+- **THEN** the request fails with the same message, nothing on disk is touched, and the app stays usable
 
 ### Closing the window ends the app
 
