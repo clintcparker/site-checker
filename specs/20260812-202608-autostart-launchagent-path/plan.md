@@ -217,4 +217,4 @@ three Open Decisions already recorded in [spec.md](./spec.md).
 - [x] Phase 1 — design complete → [data-model.md](./data-model.md),
       [contracts/launch-agent-plist.md](./contracts/launch-agent-plist.md), [quickstart.md](./quickstart.md)
 - [x] Constitution Check — passed pre-research and re-checked post-design
-- [ ] Phase 2 — `tasks.md` (produced by `/speckit-tasks`, not by this command)
+- [x] Phase 2 — `tasks.md` complete → [tasks.md](./tasks.md) (34 tasks, 3 user stories)
