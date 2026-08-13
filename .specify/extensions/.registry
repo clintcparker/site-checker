@@ -1,34 +1,6 @@
 {
   "schema_version": "1.0",
   "extensions": {
-    "screenshots": {
-      "version": "0.1.0",
-      "source": "local",
-      "manifest_hash": "sha256:f798a008ce0c2df9763dbc1c4f4c41d6096a21e4f294dd56e508861d53b6a9a7",
-      "enabled": true,
-      "priority": 10,
-      "registered_commands": {
-        "claude": [
-          "speckit.screenshots.capture"
-        ]
-      },
-      "registered_skills": [],
-      "installed_at": "2026-08-05T21:47:23.389807+00:00"
-    },
-    "ship": {
-      "version": "1.0.0",
-      "source": "local",
-      "manifest_hash": "sha256:7aeaac4af9046a3ac9773fa2ef6c8938beef9cc02d7b8f841e72f388ecbdae69",
-      "enabled": true,
-      "priority": 10,
-      "registered_commands": {
-        "claude": [
-          "speckit.ship.run"
-        ]
-      },
-      "registered_skills": [],
-      "installed_at": "2026-08-05T21:47:56.149293+00:00"
-    },
     "brownfield": {
       "version": "1.0.0",
       "source": "local",
@@ -77,20 +49,6 @@
       "registered_skills": [],
       "installed_at": "2026-08-06T16:39:13.775733+00:00"
     },
-    "staff-review": {
-      "version": "1.0.0",
-      "source": "local",
-      "manifest_hash": "sha256:320fa967c40ae943e37ceb0a1fb0f8dda42eb22b07be8428674ce72532e28e1e",
-      "enabled": true,
-      "priority": 10,
-      "registered_commands": {
-        "claude": [
-          "speckit.staff-review.run"
-        ]
-      },
-      "registered_skills": [],
-      "installed_at": "2026-08-06T20:34:20.457311+00:00"
-    },
     "qa": {
       "version": "1.0.0",
       "source": "local",
@@ -104,22 +62,6 @@
       },
       "registered_skills": [],
       "installed_at": "2026-08-06T20:34:21.985124+00:00"
-    },
-    "worktrees": {
-      "version": "2.1.0",
-      "source": "local",
-      "manifest_hash": "sha256:050f163718d151d80659e56cb41e61e2e03db4f91ce44adb4f3389d8ce586951",
-      "enabled": true,
-      "priority": 10,
-      "registered_commands": {
-        "claude": [
-          "speckit.worktrees.create",
-          "speckit.worktrees.list",
-          "speckit.worktrees.clean"
-        ]
-      },
-      "registered_skills": [],
-      "installed_at": "2026-08-06T23:51:42.857911+00:00"
     },
     "git": {
       "version": "1.1.0",
@@ -138,6 +80,64 @@
       },
       "registered_skills": [],
       "installed_at": "2026-08-07T00:34:05.017086+00:00"
+    },
+    "worktrees": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:99fab0dbac58df0b0dad7803f2d2abe070cfe2e84b0c2d23f2cecad184d9708e",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.worktrees.create",
+          "speckit.worktrees.list",
+          "speckit.worktrees.clean"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-12T23:25:03.181257+00:00"
+    },
+    "ship": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:7aeaac4af9046a3ac9773fa2ef6c8938beef9cc02d7b8f841e72f388ecbdae69",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.ship.run"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-12T23:25:04.497242+00:00"
+    },
+    "staff-review": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:320fa967c40ae943e37ceb0a1fb0f8dda42eb22b07be8428674ce72532e28e1e",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.staff-review.run"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-12T23:25:05.832665+00:00"
+    },
+    "screenshots": {
+      "version": "0.1.0",
+      "source": "local",
+      "manifest_hash": "sha256:29d5a1a0be5f4f83e811eb9a3ff0a4233891890c7c7ae727865042e135b142cc",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.screenshots.capture"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-12T23:25:07.880025+00:00"
     }
   }
 }

@@ -1,0 +1,96 @@
+# Example profile — Tauri desktop app captured with AppleScript + screencapture.
+# Distilled from site-checker. Copy to
+# .specify/extensions/screenshots/screenshots-config.yml and adapt.
+
+unconfigured: false
+
+ui_surface:
+  paths:
+    - "src"
+    - "index.html"
+    - "src-tauri/tauri.conf.json"
+  notes: |
+    The frontend and the window definition are UI. Backend-only Rust work — HTTP
+    classifier internals, store, scheduling, config — is not, UNLESS it changes
+    user-visible output such as status `reason` strings or the shape of the
+    `site-status` event.
+
+launch: |
+  Seed the data file BEFORE launching (see `data`) — the app reads it at startup.
+
+  A fresh worktree has no node_modules: run `pnpm install` first if it is
+  missing. Start `pnpm tauri dev` in the background, capturing stdout+stderr to a
+  log file OUTSIDE the checkout. The first cold cargo build can take several
+  minutes — allow ~10 min before declaring failure.
+
+  Vite is pinned to port 1420 with strictPort; if a stale dev server holds it,
+  kill that process first.
+
+  The dev window belongs to process `tauri-app` (bundled builds appear as
+  `Site Checker`). Poll System Events until it exists:
+
+      osascript -e 'tell application "System Events" to get position of window 1 of process "tauri-app"'
+
+  Wait a few seconds after launch so Pending resolves to Up/Down before
+  capturing — unless the feature is about the Pending state itself. Note the
+  choice in the manifest.
+
+auth: |
+  none
+
+data: |
+  The app reads ~/Library/Application Support/com.clintparker.site-checker/sites.json
+  (a bare JSON array) at startup. There is no env override, so seeding means
+  touching the user's REAL file. Protect it:
+
+  - If the file exists and no `sites.json.shots-backup` exists beside it, move it
+    to `sites.json.shots-backup` and record `app.backup: true` in the manifest.
+  - Write the seed file. Use `app.seed_sites` from the manifest if present — mode
+    `after` must reproduce the baseline exactly — otherwise pick 2–4 sites that
+    exercise the states the feature touches and record them. A dependable
+    default:
+
+        [
+          { "id": "shots-up",   "url": "https://example.com",  "label": "Example",  "interval_secs": 60 },
+          { "id": "shots-down", "url": "https://down.invalid", "label": "Never Up", "interval_secs": 60 }
+        ]
+
+    `.invalid` never resolves, so it renders the Down state without waiting on a
+    real outage. Checks hit the real network; every site starts Pending on launch
+    and results are never persisted.
+
+  Restoring the backup is MANDATORY in both modes, every run, success or
+  failure — see `cleanup`.
+
+targets: |
+  Single-window app, so "pages" are views/states: the main site list, the empty
+  state, the add-site form, an error banner — whatever the spec touches. Reach
+  each by driving the app with AppleScript keystrokes/clicks, or by temporarily
+  emptying the seed file for the empty state.
+
+viewports:
+  default: "720x480"
+  narrow: "480x320"
+
+capture_method: |
+  Resize with System Events:
+
+      set size of window 1 of process "tauri-app" to {W, H}
+
+  then read `position` and `size` and capture just the window with
+  `screencapture -R x,y,w,h <file>` (`-l <windowid>` is fine too if you can get a
+  CGWindowID). 720x480 is the shipped size in tauri.conf.json; 480x320 is the
+  resizable floor, captured as a layout stress test.
+
+  macOS screen-capture permission must already be granted to the terminal
+  running the agent. If `screencapture` produces empty images, report that
+  instead of retrying blindly.
+
+cleanup: |
+  Kill the `pnpm tauri dev` process TREE — it spawns vite, cargo and the app.
+  Kill the process group, then verify no `tauri-app` process survives.
+
+  Restore the user's data: if `sites.json.shots-backup` exists, move it back over
+  `sites.json`; otherwise delete the seed `sites.json`. Do this in BOTH modes,
+  every run, success or failure. `app.seed_sites` in the manifest is what makes
+  the `after` run reproducible — not leftover state.

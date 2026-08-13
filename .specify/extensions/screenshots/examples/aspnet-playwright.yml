@@ -1,0 +1,80 @@
+# Example profile — ASP.NET Razor Pages app captured with Playwright.
+# Distilled from homeapp1, the repo this extension was extracted from.
+# Copy to .specify/extensions/screenshots/screenshots-config.yml and adapt.
+
+unconfigured: false
+
+ui_surface:
+  paths:
+    - "src/HomeApp/Pages"
+    - "src/HomeApp/wwwroot"
+  notes: |
+    Razor pages, CSS and images, the action/invite confirm pages, and
+    layout/shared partials are UI. Backend-only work — feed .ics internals,
+    lifecycle rules, EF migrations, configuration — is not.
+
+launch: |
+  Start the server in the background, capturing stdout to a log file OUTSIDE the
+  checkout:
+
+      DATA_DIR=<data_dir> \
+      APP_BASE_URL=http://localhost:8123 \
+      ASPNETCORE_URLS=http://localhost:8123 \
+      dotnet run --project src/HomeApp
+
+  Poll `GET http://localhost:8123/healthz` until healthy, timeout ~60s. On
+  failure, dump the log tail and stop with an error.
+
+  Port 8123 avoids the dev default 8080. If it is occupied, pick another free
+  port and use it for APP_BASE_URL too — sign-in links are stamped from it.
+
+auth: |
+  Magic-link flow. With no ACS/SMTP configured the console email fallback logs
+  the sign-in link to stdout.
+
+  1. Provision the screenshot user (idempotent; skip in mode `after` if the data
+     dir survived):
+         dotnet run --project src/HomeApp -- provision shots@example.test \
+           --name "Screenshot Bot"
+  2. Using the Playwright browser tools, navigate to
+     http://localhost:8123/login and submit shots@example.test.
+  3. Grep the server log for the most recent sign-in URL and navigate to it. The
+     resulting cookie lasts the whole session.
+
+data: |
+  A SQLite database under DATA_DIR. NEVER inside the repo or worktree — the git
+  auto-commit hooks would commit it.
+
+  Mode `before`: create a fresh directory (`mktemp -d -t homeapp-shots`) and
+  record its absolute path in the manifest as `app.data_dir`. Then, through the
+  UI, create the minimum data that makes the targets meaningful — typically one
+  home, one entity such as an appliance, and one maintenance task, so the
+  dashboard and occurrence pages are non-empty. Record each step tersely in
+  `app.seed_steps`.
+
+  Mode `after`: reuse `app.data_dir` if it still exists. Startup migrations
+  upgrade the schema, and reusing it keeps the data identical so the before/after
+  diff shows only the UI change. If it is gone, create a fresh one and replay
+  `app.seed_steps`. Then create whatever new data the feature itself introduces
+  (a new field, a new page's records) so the change is visible.
+
+  Leave the data dir in place after mode `before`; delete it after mode `after`.
+
+targets: |
+  Pages, addressed by route. Choose the pages the feature changes plus the
+  dashboard if it is affected. Record `{ "slug": ..., "why": ... }` and keep the
+  route in `app.paths` as slug -> path.
+
+viewports:
+  mobile: "390x844"
+  desktop: "1280x900"
+
+capture_method: |
+  Playwright viewport screenshots — not full-page, unless the change is below
+  the fold. The app is mobile-first with one breakpoint at 768px, which is why
+  the two sizes straddle it.
+
+cleanup: |
+  Kill the `dotnet run` process and close the browser tab. Mode `before` leaves
+  the data dir for mode `after`; mode `after` deletes it. Never commit the data
+  dir or the server log.

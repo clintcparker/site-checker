@@ -1,7 +1,6 @@
 ---
 name: speckit-staff-review-run
-description: Perform a staff-level code review of implementation changes, focused
-  on correctness, security, performance, and spec compliance.
+description: Perform a staff-level code review of implementation changes, focused on correctness, security, performance, and spec compliance.
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
   author: github-spec-kit

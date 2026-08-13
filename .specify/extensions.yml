@@ -28,6 +28,14 @@ hooks:
     prompt: Commit specification changes?
     description: Auto-commit after specification
     condition: null
+  - extension: worktrees
+    command: speckit.worktrees.create
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.worktrees.create?
+    description: Auto-spawn a worktree after a new feature is specified
+    condition: null
   after_plan:
   - extension: companion
     command: speckit.companion.after-plan
@@ -64,15 +72,6 @@ hooks:
     description: Auto-commit after task generation
     condition: null
   after_implement:
-  - extension: ship
-    command: speckit.ship.run
-    enabled: true
-    optional: true
-    priority: 10
-    prompt: Ship this feature?
-    description: Runs pre-flight checks, syncs branches, generates changelog, and
-      creates PR
-    condition: null
   - extension: companion
     command: speckit.companion.after-implement
     enabled: true
@@ -81,15 +80,6 @@ hooks:
     prompt: Execute speckit.companion.after-implement?
     description: Per-task journaling on implement (currentStep=implement; status=implemented
       when all tasks checked)
-    condition: null
-  - extension: staff-review
-    command: speckit.staff-review.run
-    enabled: true
-    optional: true
-    priority: 10
-    prompt: Run staff-level code review?
-    description: Reviews implementation changes against spec for correctness, security,
-      and quality
     condition: null
   - extension: qa
     command: speckit.qa.run
@@ -108,6 +98,24 @@ hooks:
     prompt: Commit implementation changes?
     description: Auto-commit after implementation
     condition: null
+  - extension: ship
+    command: speckit.ship.run
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Ship this feature?
+    description: Runs pre-flight checks, syncs branches, generates changelog, and
+      creates PR
+    condition: null
+  - extension: staff-review
+    command: speckit.staff-review.run
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Run staff-level code review?
+    description: Reviews implementation changes against spec for correctness, security,
+      and quality
+    condition: null
   after_init:
   - extension: brownfield
     command: speckit.brownfield.scan
@@ -116,15 +124,6 @@ hooks:
     priority: 10
     prompt: Scan this existing project to customize spec-kit configuration?
     description: Auto-scan project after spec-kit init to detect tech stack and conventions
-    condition: null
-  before_specify:
-  - extension: worktrees
-    command: speckit.worktrees.create
-    enabled: true
-    optional: false
-    priority: 20
-    prompt: Execute speckit.worktrees.create?
-    description: Create the feature branch inside a new worktree and work there
     condition: null
   before_constitution:
   - extension: git

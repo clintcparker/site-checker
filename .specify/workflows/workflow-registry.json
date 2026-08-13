@@ -31,13 +31,11 @@
     },
     "send-it-checked": {
       "name": "Spec to PR, unattended, with review and QA",
-      "version": "0.3.1",
+      "version": "0.7.0",
       "description": "send-it plus staff review and QA, each with one fix-and-re-run pass, before shipping \u2014 with before/after UI screenshots. Requires the `worktrees`, `screenshots`, `ship`, `staff-review` and `qa` extensions.",
-      "source": "catalog",
-      "catalog_name": "catalog-1",
-      "url": "https://raw.githubusercontent.com/clintcparker/speckit-addons/send-it-checked-v0.3.1/workflows/send-it-checked/workflow.yml",
-      "installed_at": "2026-08-06T21:16:52.518788+00:00",
-      "updated_at": "2026-08-07T01:57:14.992360+00:00"
+      "source": "https://raw.githubusercontent.com/clintcparker/speckit-addons/main/workflows/send-it-checked/workflow.yml",
+      "installed_at": "2026-08-12T23:36:59.492632+00:00",
+      "updated_at": "2026-08-12T23:36:59.492643+00:00"
     }
   }
 }

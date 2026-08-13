@@ -2,7 +2,7 @@ schema_version: "1.0"
 workflow:
   id: "send-it-checked"
   name: "Spec to PR, unattended, with review and QA"
-  version: "0.3.1"
+  version: "0.7.0"
   author: "clintcparker"
   description: "send-it plus staff review and QA, each with one fix-and-re-run pass, before shipping — with before/after UI screenshots. Requires the `worktrees`, `screenshots`, `ship`, `staff-review` and `qa` extensions."
 
@@ -94,26 +94,150 @@ steps:
         close the gap, and no copying untracked files across. "Never prompt" is not licence
         to act unilaterally.
 
-        Carry BOTH worktree_isolation and session forward, so the ship step can surface a
-        recovered, failed, or degraded isolation in the pull request description.
+        PIN THE FEATURE — take Outline step 4 on every path out of this command, including
+        worktree_isolation=failed: write the run context with write-run-context.sh and
+        report run_context=<path> in the fields block. Every later step of this workflow
+        resolves FEATURE_DIR from that file and has nothing else to go on. If the script
+        exits 3, another unattended run owns the pointer in this primary checkout — report
+        run_context=collision naming both branches, and do NOT pass --force.
 
+        Carry worktree_isolation, session AND run_context forward, so the ship step can
+        surface a recovered, failed, degraded, or collided outcome in the pull request
+        description.
+
+  # Every step below re-states the same FEATURE IDENTITY block. That is not an oversight:
+  # the workflow engine has no step-output templating, so a step receives nothing but its
+  # own args — not the worktree step's report, not the previous step's output. Each one has
+  # to be told, in its own args, where to find the run context. See issue #1.
   - id: specify
     command: speckit.specify
     integration: "{{ inputs.integration }}"
     input:
-      args: "{{ inputs.spec }}"
+      args: >-
+        {{ inputs.spec }}
+
+        --- RUN CONTROL (not part of the feature description above) ---
+
+        FEATURE IDENTITY — resolve it from the run context, not from the repo. The worktree
+        step pinned this run's feature to `.specify/run-context.json`; look for it under
+        $SPECIFY_INIT_DIR first, then in the current directory, then in the primary
+        checkout. Take `branch`, `feature_dir` and `worktree_path` from it, and export
+        SPECIFY_INIT_DIR=<worktree_path> (when non-empty) and
+        SPECIFY_FEATURE_DIRECTORY=<feature_dir> for every `.specify/scripts/**` invocation
+        this step makes.
+
+        PRIOR WORK — before running the spec command, check whether `feature_dir` already
+        exists and contains a spec document. If it does, this is a resumed run: adopt the
+        existing spec without regenerating it, note the adoption in the step output, and
+        continue. Do not mint a second branch and do not ask. If the existing spec is
+        incomplete, extend it in place and record what was added. Only run the full spec
+        command when `feature_dir` does not yet exist or is empty.
+
+        Do not mint a new feature number and do not derive one from `specs/`: the branch in
+        the run context is this run's feature, whatever the tree the session is standing in
+        looks like.
+
+        If a script resolves a feature the run context does not name, it has found the wrong
+        one: FAIL THIS STEP LOUDLY, naming both, and do not adopt it. If no run context file
+        can be found at all, fail the same way rather than guessing.
+
+        ARTIFACT COMMIT — after completing this step's work, commit any new or modified files
+        to the feature branch. Run `git -C <worktree_path> add .` and
+        `git -C <worktree_path> commit` with a descriptive Conventional Commit message
+        (e.g. `docs(specify): add specification for <feature-name>`). Skip silently if there
+        is nothing to commit. Do not prompt — treat the optional git auto-commit hook as
+        answered YES.
+
+        UNATTENDED RUN — no user is present; never pause for input and never ask a question.
+        Make every judgment call yourself, record it and its reasoning in the artifact, and
+        flag it as an open decision the ship step should surface in the PR description.
 
   - id: plan
     command: speckit.plan
     integration: "{{ inputs.integration }}"
     input:
-      args: "{{ inputs.spec }}"
+      args: >-
+        {{ inputs.spec }}
+
+        --- RUN CONTROL (not part of the feature description above) ---
+
+        FEATURE IDENTITY — resolve it from the run context, not from the repo. The worktree
+        step pinned this run's feature to `.specify/run-context.json`; look for it under
+        $SPECIFY_INIT_DIR first, then in the current directory, then in the primary
+        checkout. Take `branch`, `feature_dir` and `worktree_path` from it, and export
+        SPECIFY_INIT_DIR=<worktree_path> (when non-empty) and
+        SPECIFY_FEATURE_DIRECTORY=<feature_dir> for every `.specify/scripts/**` invocation
+        this step makes.
+
+        Never infer the feature from the current branch, from `.specify/feature.json`, or
+        from the newest directory under `specs/`. Right after a merge all three name the
+        PREVIOUS feature, and this run's session is usually standing in the primary
+        checkout, where that is exactly what they name. A helper script exiting 0 is not
+        evidence it found the right feature: `setup-plan.sh` exits 0 on the wrong one and
+        plants a template `plan.md` there.
+
+        If a script resolves a feature the run context does not name, it has found the wrong
+        one: FAIL THIS STEP LOUDLY, naming both the resolved feature and the pinned one, and
+        do not adopt it. If no run context file can be found at all, fail the same way
+        rather than guessing.
+
+        PRIOR WORK — if `feature_dir` already contains a completed `plan.md` from a prior
+        run, adopt it without regenerating. Note the adoption in the step output and
+        continue. Only run the full plan command when `plan.md` does not exist or is empty.
+
+        ARTIFACT COMMIT — after completing this step's work, commit any new or modified files
+        to the feature branch. Run `git -C <worktree_path> add .` and
+        `git -C <worktree_path> commit` with a descriptive Conventional Commit message
+        (e.g. `docs(plan): add implementation plan for <feature-name>`). Skip silently if
+        there is nothing to commit. Do not prompt — treat the optional git auto-commit hook
+        as answered YES.
+
+        UNATTENDED RUN — no user is present; never pause for input and never ask a question.
+        Make every judgment call yourself, record it and its reasoning in the artifact, and
+        flag it as an open decision the ship step should surface in the PR description.
 
   - id: tasks
     command: speckit.tasks
     integration: "{{ inputs.integration }}"
     input:
-      args: "{{ inputs.spec }}"
+      args: >-
+        {{ inputs.spec }}
+
+        --- RUN CONTROL (not part of the feature description above) ---
+
+        FEATURE IDENTITY — resolve it from the run context, not from the repo. The worktree
+        step pinned this run's feature to `.specify/run-context.json`; look for it under
+        $SPECIFY_INIT_DIR first, then in the current directory, then in the primary
+        checkout. Take `branch`, `feature_dir` and `worktree_path` from it, and export
+        SPECIFY_INIT_DIR=<worktree_path> (when non-empty) and
+        SPECIFY_FEATURE_DIRECTORY=<feature_dir> for every `.specify/scripts/**` invocation
+        this step makes.
+
+        Never infer the feature from the current branch, from `.specify/feature.json`, or
+        from the newest directory under `specs/`. Right after a merge all three name the
+        PREVIOUS feature, and this run's session is usually standing in the primary
+        checkout, where that is exactly what they name. A helper script exiting 0 is not
+        evidence it found the right feature.
+
+        If a script resolves a feature the run context does not name, it has found the wrong
+        one: FAIL THIS STEP LOUDLY, naming both the resolved feature and the pinned one, and
+        do not adopt it. If no run context file can be found at all, fail the same way
+        rather than guessing.
+
+        PRIOR WORK — if `feature_dir` already contains a completed `tasks.md` from a prior
+        run, adopt it without regenerating. Note the adoption in the step output and
+        continue. Only run the full tasks command when `tasks.md` does not exist or is empty.
+
+        ARTIFACT COMMIT — after completing this step's work, commit any new or modified files
+        to the feature branch. Run `git -C <worktree_path> add .` and
+        `git -C <worktree_path> commit` with a descriptive Conventional Commit message
+        (e.g. `docs(tasks): add task list for <feature-name>`). Skip silently if there is
+        nothing to commit. Do not prompt — treat the optional git auto-commit hook as
+        answered YES.
+
+        UNATTENDED RUN — no user is present; never pause for input and never ask a question.
+        Make every judgment call yourself, record it and its reasoning in the artifact, and
+        flag it as an open decision the ship step should surface in the PR description.
 
   # Baseline screenshots MUST run before implement: at this point the worktree
   # differs from the target branch only by spec documents, so the app still
@@ -127,6 +251,30 @@ steps:
       args: >-
         mode: before. Target branch: {{ inputs.target_branch }}.
 
+        FEATURE IDENTITY — resolve it from the run context, not from the repo. The
+        worktree step pinned this run's feature to `.specify/run-context.json`; look for
+        it under $SPECIFY_INIT_DIR first, then in the current directory, then in the
+        primary checkout. Take `branch`, `feature_dir` and `worktree_path` from it, and
+        export SPECIFY_INIT_DIR=<worktree_path> (when non-empty) and
+        SPECIFY_FEATURE_DIRECTORY=<feature_dir> for every `.specify/scripts/**`
+        invocation this step makes. The manifest and the images belong under that
+        `feature_dir`, and the app to build and drive is the one in `worktree_path`.
+
+        Never infer the feature from the current branch, from `.specify/feature.json`,
+        or from the newest directory under `specs/` — right after a merge all three name
+        the PREVIOUS feature, and this run's session is usually standing in the primary
+        checkout, where that is exactly what they name. If anything resolves a feature
+        the run context does not name, FAIL THIS STEP LOUDLY naming both rather than
+        capturing the wrong tree. If no run context file can be found at all, fail the
+        same way rather than guessing.
+
+        ARTIFACT COMMIT — after the capture pass, commit any new or modified files to the
+        feature branch. Run `git -C <worktree_path> add .` and
+        `git -C <worktree_path> commit` with a descriptive Conventional Commit message
+        (e.g. `docs(screenshots): add before screenshots for <feature-name>`). Skip
+        silently if there is nothing to commit. Do not prompt — treat the optional git
+        auto-commit hook as answered YES.
+
         UNATTENDED RUN — no user is present. Make every judgement call
         (UI-relevance, which targets, what seed data) yourself and record it in
         the manifest instead of asking. If the app profile is still
@@ -139,7 +287,45 @@ steps:
     command: speckit.implement
     integration: "{{ inputs.integration }}"
     input:
-      args: "{{ inputs.spec }}"
+      args: >-
+        {{ inputs.spec }}
+
+        --- RUN CONTROL (not part of the feature description above) ---
+
+        FEATURE IDENTITY — resolve it from the run context, not from the repo. The worktree
+        step pinned this run's feature to `.specify/run-context.json`; look for it under
+        $SPECIFY_INIT_DIR first, then in the current directory, then in the primary
+        checkout. Take `branch`, `feature_dir` and `worktree_path` from it, and export
+        SPECIFY_INIT_DIR=<worktree_path> (when non-empty) and
+        SPECIFY_FEATURE_DIRECTORY=<feature_dir> for every `.specify/scripts/**` invocation
+        this step makes.
+
+        Every file this step writes belongs in the tree named by `worktree_path`. Never
+        infer the feature from the current branch, from `.specify/feature.json`, or from the
+        newest directory under `specs/`; right after a merge all three name the PREVIOUS
+        feature, and implementing against those is how a run edits the wrong tree.
+
+        If a script resolves a feature the run context does not name, it has found the wrong
+        one: FAIL THIS STEP LOUDLY, naming both the resolved feature and the pinned one, and
+        do not adopt it. If no run context file can be found at all, fail the same way
+        rather than guessing.
+
+        PRIOR WORK — if `worktree_path` already contains uncommitted or committed changes
+        from a prior run, adopt them: rebase onto the current base ref if needed, extend or
+        complete the implementation rather than rewriting it, and extend the tests rather
+        than replacing them. Record what was inherited and what was added. Do not ask.
+
+        ARTIFACT COMMIT — after the implementation is complete, commit all changes to the
+        feature branch. Run `git -C <worktree_path> add .` and
+        `git -C <worktree_path> commit` with a descriptive Conventional Commit message
+        appropriate to what was implemented (e.g. `feat: implement <feature-name>`; use
+        finer-grained commits per logical unit when the changes span multiple concerns).
+        Skip silently if there is nothing to commit. Do not prompt — treat the optional git
+        auto-commit hook as answered YES.
+
+        UNATTENDED RUN — no user is present; never pause for input and never ask a question.
+        Make every judgment call yourself, record it and its reasoning in the artifact, and
+        flag it as an open decision the ship step should surface in the PR description.
 
   # speckit.staff-review.run comes from the `staff-review` extension. It writes
   # its report into FEATURE_DIR/reviews/, which is exactly the directory ship's
@@ -150,6 +336,23 @@ steps:
     integration: "{{ inputs.integration }}"
     input:
       args: >-
+        FEATURE IDENTITY — resolve it from the run context, not from the repo. The
+        worktree step pinned this run's feature to `.specify/run-context.json`; look for
+        it under $SPECIFY_INIT_DIR first, then in the current directory, then in the
+        primary checkout. FEATURE_DIR is that file's `feature_dir`, the branch to diff is
+        its `branch`, and the tree to read is its `worktree_path`. Export
+        SPECIFY_INIT_DIR and SPECIFY_FEATURE_DIRECTORY from those values for every
+        `.specify/scripts/**` invocation.
+
+        Never infer the feature from the current branch, from `.specify/feature.json`, or
+        from the newest directory under `specs/`. Right after a merge all three name the
+        PREVIOUS feature, and this run's session is usually standing in the primary
+        checkout, where that is exactly what they name — a review of an
+        already-merged feature passes cleanly and tells you nothing about this one. If
+        anything resolves a feature the run context does not name, or no run context can
+        be found, FAIL THIS STEP LOUDLY naming what you found; do not review a feature
+        this run did not build.
+
         UNATTENDED RUN — no user is present; never pause for input and never
         ask a question.
 
@@ -161,6 +364,13 @@ steps:
         reviewing whatever the verdict is and leave the report in place — the
         ship step reports what remains.
 
+        ARTIFACT COMMIT — after all review passes are complete, commit any new or modified
+        files to the feature branch. Run `git -C <worktree_path> add .` and
+        `git -C <worktree_path> commit` with a descriptive Conventional Commit message
+        (e.g. `docs(review): add review report for <feature-name>`). Skip silently if there
+        is nothing to commit. Do not prompt — treat the optional git auto-commit hook as
+        answered YES.
+
   # speckit.qa.run comes from the `qa` extension and writes into FEATURE_DIR/qa/,
   # which gates ship's pre-flight QA check the same way.
   - id: qa
@@ -168,6 +378,22 @@ steps:
     integration: "{{ inputs.integration }}"
     input:
       args: >-
+        FEATURE IDENTITY — resolve it from the run context, not from the repo. The
+        worktree step pinned this run's feature to `.specify/run-context.json`; look for
+        it under $SPECIFY_INIT_DIR first, then in the current directory, then in the
+        primary checkout. FEATURE_DIR is that file's `feature_dir` — that is where the
+        acceptance criteria, the screenshots manifest and your report all live — and the
+        app to exercise is the one in its `worktree_path`. Export SPECIFY_INIT_DIR and
+        SPECIFY_FEATURE_DIRECTORY from those values for every `.specify/scripts/**`
+        invocation.
+
+        Never infer the feature from the current branch, from `.specify/feature.json`, or
+        from the newest directory under `specs/`. Right after a merge all three name the
+        PREVIOUS feature, and QA against an already-merged feature passes cleanly while
+        testing nothing this run built. If anything resolves a feature the run context
+        does not name, or no run context can be found, FAIL THIS STEP LOUDLY naming what
+        you found.
+
         UNATTENDED RUN — no user is present; never pause for input and never
         ask a question.
 
@@ -196,6 +422,13 @@ steps:
         QA exactly once. After that second run, stop whatever the verdict is
         and leave the report in place — the ship step reports what remains.
 
+        ARTIFACT COMMIT — after all QA passes are complete, commit any new or modified files
+        to the feature branch. Run `git -C <worktree_path> add .` and
+        `git -C <worktree_path> commit` with a descriptive Conventional Commit message
+        (e.g. `docs(qa): add QA report for <feature-name>`). Skip silently if there is
+        nothing to commit. Do not prompt — treat the optional git auto-commit hook as
+        answered YES.
+
   # After qa, not after implement: review and qa each get one fix-and-re-run
   # pass, so the tree at this point is the tree that ships. Capturing right
   # after implement would document a state the pull request never contains.
@@ -205,6 +438,24 @@ steps:
     input:
       args: >-
         mode: after. Target branch: {{ inputs.target_branch }}.
+
+        FEATURE IDENTITY — resolve it from the run context, not from the repo, exactly as
+        the before pass did: read `.specify/run-context.json` ($SPECIFY_INIT_DIR first,
+        then the current directory, then the primary checkout), take `branch`,
+        `feature_dir` and `worktree_path` from it, and export SPECIFY_INIT_DIR and
+        SPECIFY_FEATURE_DIRECTORY from those values. The manifest to reuse is the one
+        under that `feature_dir`, and the app to build and drive is the one in
+        `worktree_path`. A pair of captures taken from two different features is worse
+        than no pair at all, because it looks like evidence. If anything resolves a
+        feature the run context does not name, or no run context can be found, FAIL THIS
+        STEP LOUDLY naming what you found.
+
+        ARTIFACT COMMIT — after the capture pass, commit any new or modified files to the
+        feature branch. Run `git -C <worktree_path> add .` and
+        `git -C <worktree_path> commit` with a descriptive Conventional Commit message
+        (e.g. `docs(screenshots): add after screenshots for <feature-name>`). Skip silently
+        if there is nothing to commit. Do not prompt — treat the optional git auto-commit
+        hook as answered YES.
 
         UNATTENDED RUN — no user is present. Reuse the manifest written by the
         before pass (same targets, same viewports, same app state if it
@@ -220,6 +471,22 @@ steps:
       args: >-
         Target branch: {{ inputs.target_branch }}.
 
+        FEATURE IDENTITY — resolve it from the run context, not from the repo. This is the
+        step that drifted: read `.specify/run-context.json` ($SPECIFY_INIT_DIR first, then
+        the current directory, then the primary checkout) and take `branch`, `feature_dir`
+        and `worktree_path` from it. The branch to push is `branch`; the tasks, reviews,
+        QA reports and screenshots to read are under `feature_dir`; the tree to commit
+        from is `worktree_path`. Export SPECIFY_INIT_DIR and SPECIFY_FEATURE_DIRECTORY
+        from those values for every `.specify/scripts/**` invocation.
+
+        Never infer the feature from the current branch, from `.specify/feature.json`, or
+        from the newest directory under `specs/`. This run's session is usually standing
+        in the primary checkout, which after a merge is on the target branch and points at
+        the feature that just shipped — opening a pull request for that one is exactly the
+        failure this instruction exists to prevent. If anything resolves a feature the run
+        context does not name, or no run context can be found, STOP: do not commit, do not
+        push, do not open a pull request. Report what you found and what was pinned.
+
         UNATTENDED RUN — no user is present and no prompt can be answered.
         Treat every confirmation this command would normally ask as answered
         YES and continue without waiting: the readiness summary, the
@@ -230,8 +497,8 @@ steps:
         change with a descriptive conventional-commit message instead of
         prompting to commit or stash.
 
-        WORKTREE ISOLATION — the worktree step reported two fields; carry both
-        through. If the run reported worktree_isolation=failed, say so plainly
+        WORKTREE ISOLATION — the worktree step reported three fields; carry all
+        of them through. If the run reported worktree_isolation=failed, say so plainly
         near the TOP of the pull request description: the run executed in the
         primary checkout rather than an isolated worktree, and name the branch.
         If it reported worktree_isolation=recovered, note that the primary
@@ -241,10 +508,14 @@ steps:
         reason other than enter_worktree being false, note that too: the branch
         is in its worktree but the agent session ran from the primary checkout
         via SPECIFY_INIT_DIR, so every write depended on that override holding
-        rather than on the working directory. Otherwise no mention is needed.
+        rather than on the working directory. And if it reported
+        run_context=collision, put that near the TOP as well: a second unattended
+        run owns the run context pointer in the primary checkout, so both runs'
+        later steps were one unexported environment variable away from building
+        somebody else's feature. Otherwise no mention is needed.
 
         Also carry forward anything the worktree step reported under Outline
-        step 4 — a base ref behind its local counterpart, or feature inputs that
+        step 5 — a base ref behind its local counterpart, or feature inputs that
         are gitignored and therefore absent from the worktree. Both change how
         this pull request should be read: the first means the branch may not
         contain commits the reviewer has locally, the second means the feature

@@ -6,6 +6,7 @@ extension:
   version: "0.1.0"
   description: "Captures before/after UI screenshots for a feature and stages them on the branch for embedding in the pull request"
   author: "clintcparker"
+  repository: "https://github.com/clintcparker/speckit-addons"
   license: "MIT"
 
 requires:
@@ -15,7 +16,17 @@ provides:
   commands:
     - name: "speckit.screenshots.capture"
       file: "commands/capture.md"
-      description: "Capture 'before' or 'after' screenshots of the pages a feature touches"
+      description: "Capture 'before' or 'after' screenshots of the views a feature touches"
+
+  config:
+    # The name MUST end in -config.yml. specify-cli only preserves that shape
+    # across `extension add --force`; anything else is dropped on install and
+    # destroyed on reinstall, which is the whole reason the app profile is a
+    # config file rather than an edited command.
+    - name: "screenshots-config.yml"
+      template: "screenshots-config.yml"
+      description: "Per-repo app profile: how to launch, seed, target and capture this app"
+      required: false
 
 # No hooks on purpose: this command is invoked explicitly by workflows that want it
 # (send-it adds it as two steps around implement). Registering an after_tasks /

@@ -1,13 +1,11 @@
 ---
 name: speckit-screenshots-capture
-description: Capture before/after UI screenshots for the current feature and stage
-  them on the branch for the pull request.
+description: Capture before/after UI screenshots for the current feature and stage them on the branch for the pull request.
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
   author: github-spec-kit
   source: screenshots:commands/capture.md
 ---
-
 
 ## User Input
 
@@ -23,13 +21,25 @@ Produce visual evidence that the app runs and the change looks right — a cheap
 
 ```
 FEATURE_DIR/screenshots/
-  manifest.json                    # views, window sizes, seed sites, notes
+  manifest.json                    # targets, viewports, baseline, app-specific state
   SKIPPED.md                       # written instead of images when the feature has no UI surface
-  before/<view-slug>-<size>.png
-  after/<view-slug>-<size>.png
+  before/<target-slug>-<viewport>.png
+  after/<target-slug>-<viewport>.png
 ```
 
-Everything here except the user's real data file is committed to the feature branch so `speckit.ship.run` can embed the images in the PR description.
+Everything here except app state is committed to the feature branch so `speckit.ship.run` can embed the images in the PR description.
+
+## The app profile
+
+This command is generic. Everything that depends on *this* app — how to launch it, how to sign in, where its data lives, what counts as a "view", how a screenshot is actually taken — lives in the profile at:
+
+```
+.specify/extensions/screenshots/screenshots-config.yml
+```
+
+Read it before step 3 and follow it. Its sections are `ui_surface`, `launch`, `auth`, `data`, `targets`, `viewports`, `capture_method`, and `cleanup`.
+
+**If the profile has `unconfigured: true`**, derive it yourself before continuing: read the repo README, build manifests (`package.json`, `*.csproj`, `Cargo.toml`, `pyproject.toml`, `go.mod`), the app entry point, and any existing e2e/browser config (Playwright, Cypress, Puppeteer, Tauri). Write the profile with your findings, set `unconfigured: false`, record `"profile": "auto-generated"` in the manifest's `notes`, and continue. Do not stop to ask — a repo-agnostic install must be runnable with zero manual steps, and the profile is reviewable after the fact. The `.specify/extensions/screenshots/examples/` directory in this extension shows two filled-in profiles.
 
 ## Execution Steps
 
@@ -39,68 +49,66 @@ Run `.specify/scripts/bash/check-prerequisites.sh --json` from repo root and par
 
 ### 2. Decide whether the feature is UI-relevant
 
-- **Mode `before`**: read `FEATURE_DIR/spec.md` (and `plan.md` if present). The feature is UI-relevant iff it changes anything a user sees in the app window: the frontend (`src/`, `index.html`, CSS) or the window definition in `src-tauri/tauri.conf.json`. Backend-only Rust work (HTTP classifier internals, store, scheduling, config) is not — *unless* it changes user-visible output such as status `reason` strings or the shape of the `site-status` event. If not UI-relevant, write `FEATURE_DIR/screenshots/SKIPPED.md` containing one line explaining why, commit it (`docs: screenshots skipped — <reason>`), and stop successfully.
-- **Mode `after`**: if `SKIPPED.md` exists, verify the prediction: `git diff --name-only $(git merge-base HEAD <target>)..HEAD -- src index.html src-tauri/tauri.conf.json`. If still empty, stop successfully. If implementation touched UI after all, delete `SKIPPED.md` and continue — there will be no baseline, so record `"baseline": "unavailable"` in the manifest and capture `after/` only.
+- **Mode `before`**: read `FEATURE_DIR/spec.md` (and `plan.md` if present). The feature is UI-relevant iff it changes something a user sees, per the profile's `ui_surface`. If not UI-relevant, write `FEATURE_DIR/screenshots/SKIPPED.md` containing one line explaining why, commit it (`docs: screenshots skipped — <reason>`), and stop successfully.
+- **Mode `after`**: if `SKIPPED.md` exists, verify the prediction with
+  `git diff --name-only $(git merge-base HEAD <target>)..HEAD -- <ui_surface.paths>`,
+  where `<target>` is the target branch named in `$ARGUMENTS` if given, else the profile's default, else the repo's default branch. If the diff is still empty, stop successfully. If implementation touched UI after all, delete `SKIPPED.md` and continue — there will be no baseline, so record `"baseline": "unavailable"` in the manifest and capture `after/` only.
 
-### 3. Seed data (BEFORE launching)
+### 3. Prepare data and launch the app
 
-The app reads `~/Library/Application Support/com.clintparker.site-checker/sites.json` (a bare JSON array of sites) at startup; there is no env override, so seeding means touching the user's real file. **Protect it**:
+Follow the profile's `data` and `launch` sections, in whichever order the profile specifies — some apps must be seeded before launch, others after.
 
-- If the file exists and no `sites.json.shots-backup` exists beside it, move it to `sites.json.shots-backup`. Record `"backup": true` in the manifest. Restoring this backup in step 7 is mandatory even if the run fails — treat it like a `trap`.
-- Write the seed file. Use the manifest's `seed_sites` if it exists (mode `after` must reproduce the baseline exactly); otherwise pick 2–4 sites that exercise the states the feature touches and record them in the manifest. A dependable default:
+Two rules hold regardless of profile:
 
-```json
-[
-  { "id": "shots-up",   "url": "https://example.com",  "label": "Example",    "interval_secs": 60 },
-  { "id": "shots-down", "url": "https://down.invalid", "label": "Never Up",   "interval_secs": 60 }
-]
-```
+- **App state never lives inside the repo or worktree.** Auto-commit hooks would commit a database, a log, or a lockfile. Keep data directories and server logs on a path outside the checkout.
+- **Real user data must survive every run, including a failed one.** If the profile's `data` section describes a backup/restore of a real file, treat the restore like a `trap`: perform it in both modes, on success and on failure, before reporting anything.
 
-`.invalid` never resolves, so it renders the Down state without waiting on a real outage. Checks hit the real network; every site starts Pending on launch and results are never persisted.
+Mode `after` reuses the baseline state recorded in the manifest's `app` object so the before/after pair differs only by the UI change. If that state is gone, recreate it by replaying whatever the profile calls the seed procedure, then continue.
 
-### 4. Launch the app
+If the app fails to build or start, dump the log tail and stop with an error — a non-starting app is itself a finding worth reporting.
 
-- A fresh worktree has no `node_modules`: run `pnpm install` first if it is missing.
-- Start `pnpm tauri dev` in the background, capturing stdout+stderr to a log file **outside the checkout** (the git auto-commit hooks would commit anything inside it). First cold cargo build can take several minutes — allow ~10 min before declaring failure; on failure, dump the log tail and stop with an error (a non-starting app is itself a finding worth reporting).
-- Vite is pinned to port 1420 with `strictPort` — if a stale dev server holds it, kill that process first.
-- The dev window belongs to process `site-checker` (bundled builds appear as `Site Checker`); its title is `Site Checker`. Poll System Events until it exists:
-  `osascript -e 'tell application "System Events" to get position of window 1 of process "site-checker"'`
-- Wait a few seconds after launch so Pending resolves to Up/Down before capturing — unless the feature is about the Pending state itself; use judgment and note the choice in the manifest.
+### 4. Authenticate
 
-### 5. Choose target views
+Follow the profile's `auth` section. If it says `none`, skip this step.
 
-This is a single-window app, so "pages" are views/states: the main site list, the empty state, the add-site form, an error banner — whatever the spec touches (1–4 views). Reach each one by driving the app (AppleScript keystrokes/clicks, or temporarily emptying the seed file for the empty state). Mode `after` must reuse the manifest's view list, adding any views the feature newly created.
+### 5. Choose targets
+
+A "target" is whatever the profile's `targets` section says a capturable unit is — a page, a route, a window state, a view. Choose 1–4 from the spec: the ones the feature changes, plus the app's main screen if it is affected. Record each as `{ "slug": ..., "why": ... }`.
+
+Mode `after` **must** reuse the manifest's target list, adding any targets the feature newly created.
 
 ### 6. Capture
 
-For each view, capture the window at two sizes (the window is resizable, 480×320 minimum):
+For each target, capture at every viewport in the profile's `viewports` map. Use the profile's `capture_method`. Filenames: `<target-slug>-<viewport-label>.png` under `before/` or `after/` per mode.
 
-- `default`: 720×480 (the shipped size in `tauri.conf.json`)
-- `narrow`: 480×320 (the floor — layout stress test)
-
-Resize with System Events (`set size of window 1 of process "site-checker" to {W, H}`), then capture just the window: read `position` and `size` from System Events and run `screencapture -R x,y,w,h <file>` (`-l <windowid>` is fine too if you can get a CGWindowID). Filenames: `<view-slug>-<size>.png` under `before/` or `after/` per mode.
+Keep the total payload modest: PNG, viewport- or window-sized, 1–4 targets × the declared viewports.
 
 ### 7. Record, commit, clean up
 
-- Write/update `FEATURE_DIR/screenshots/manifest.json`:
+Write/update `FEATURE_DIR/screenshots/manifest.json`:
 
 ```json
 {
-  "backup": true,
-  "sizes": { "default": "720x480", "narrow": "480x320" },
-  "seed_sites": [ { "id": "shots-up", "url": "https://example.com", "label": "Example", "interval_secs": 60 } ],
-  "views": [ { "slug": "site-list", "why": "status row layout changed" } ],
-  "notes": []
+  "targets": [ { "slug": "dashboard", "why": "task list layout changed" } ],
+  "viewports": { "mobile": "390x844", "desktop": "1280x900" },
+  "baseline": "available",
+  "notes": [],
+  "app": {}
 }
 ```
 
-- Kill the `pnpm tauri dev` process **tree** (it spawns vite, cargo, and the app — kill the process group, then verify no `site-checker` process survives).
-- Restore the user's data: if `sites.json.shots-backup` exists, move it back over `sites.json`; otherwise delete the seed `sites.json`. Do this in **both** modes, every run, success or failure — the manifest's `seed_sites` is what makes the `after` run reproducible, not leftover state.
-- Commit `FEATURE_DIR/screenshots/` with message `docs: <mode> screenshots for <feature>`. Never commit the data file, dev-server logs, or anything outside `FEATURE_DIR/screenshots/`.
+- `targets` — the captured units, each with a `slug` and a `why`.
+- `viewports` — label → `WxH`, copied from the profile.
+- `baseline` — `"available"` or `"unavailable"`.
+- `notes` — free-form strings. Record failures here rather than dropping them.
+- `app` — free-form, profile-specific state that mode `after` needs in order to
+  reproduce mode `before`: a data directory path, a backup flag, seed steps, seed
+  records. Its shape is the profile's business, not this command's.
+
+Then clean up per the profile's `cleanup` section, and commit `FEATURE_DIR/screenshots/` with message `docs: <mode> screenshots for <feature>`. Never commit app data, server logs, or anything outside `FEATURE_DIR/screenshots/`.
 
 ## Constraints
 
-- This command never modifies application code. If the app fails to build or start in mode `after`, that is an implementation defect: report it clearly and stop — do not patch around it.
-- Keep total image payload modest: PNG, window-sized, 1–4 views × 2 sizes.
-- The user's real `sites.json` must survive every run — the backup/restore in steps 3 and 7 is not optional, and a crashed run must still restore it before reporting the failure.
-- macOS screen-capture permission must already be granted to the terminal running the agent; if `screencapture` produces empty images, report that instead of retrying blindly.
+- This command **never modifies application code**. If the app fails to build or start in mode `after`, that is an implementation defect: report it clearly and stop — do not patch around it.
+- The data-protection rules in step 3 are not optional, and a crashed run must still restore real user data before reporting the failure.
+- If the profile pins a port and it is occupied, pick another free port and use it consistently everywhere the profile references one (sign-in links and callback URLs are often stamped from it).

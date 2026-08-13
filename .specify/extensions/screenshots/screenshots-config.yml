@@ -1,0 +1,57 @@
+# Screenshots extension — per-repo app profile.
+#
+# commands/capture.md is generic and is never edited per repo. Everything that
+# depends on *this* app lives here. Spec Kit preserves this file across
+# `specify extension add screenshots --force`, so upgrading the extension never
+# clobbers your adaptation.
+#
+# Leave `unconfigured: true` and the command will derive the profile itself on
+# first run, write it back here, and note in the manifest that it was
+# auto-generated. Filled-in examples for two very different apps live in
+# examples/ inside this extension.
+
+unconfigured: true
+
+# Which paths mean "a user can see the difference". Used both to judge
+# UI-relevance from the spec and, in after-mode, as the pathspec for the
+# `git diff` that verifies a SKIPPED.md prediction.
+ui_surface:
+  paths: []
+  notes: |
+    Describe anything the paths above do not capture — for example a backend
+    change that alters user-visible strings, or a config file that defines the
+    window size.
+
+# How to bring the app up, and how to know it is up.
+launch: |
+  Command, readiness probe, timeout, and any first-run setup (dependency
+  install, cold build). Say how long a cold start may legitimately take.
+
+# How to get past a sign-in screen. Write "none" if there is none.
+auth: |
+  none
+
+# Where app state lives, how to seed it, how to protect real user data, and how
+# after-mode reproduces the before-mode baseline. State must never live inside
+# the repo or worktree.
+data: |
+  Describe the state location, the seed procedure, the backup/restore contract
+  for any real user file, and what after-mode should reuse.
+
+# What counts as a capturable unit here, and how to reach one.
+targets: |
+  Pages, routes, window states, views — and how to navigate to each.
+
+# Label -> WxH. Say in `notes` why these sizes and not others.
+viewports:
+  mobile: "390x844"
+  desktop: "1280x900"
+
+# How a screenshot is actually taken.
+capture_method: |
+  For example: Playwright viewport screenshots; `screencapture -R x,y,w,h` of a
+  window rect read from System Events; a headless renderer.
+
+# How to stop the app and what to restore, in both modes, success or failure.
+cleanup: |
+  Process-tree caveats, files to restore, directories to delete.

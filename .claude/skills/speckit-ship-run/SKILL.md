@@ -1,7 +1,6 @@
 ---
 name: speckit-ship-run
-description: Automate the release pipeline including pre-flight checks, branch sync,
-  changelog generation, CI verification, and pull request creation.
+description: Automate the release pipeline including pre-flight checks, branch sync, changelog generation, CI verification, and pull request creation.
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
   author: github-spec-kit

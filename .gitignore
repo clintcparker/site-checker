@@ -44,3 +44,4 @@ specs/*/qa/responses/
 specs/*/screenshots/
 specs/*/qa/screenshots/
 specs/*/.spec-context.json
+src-tauri/Site Checker App Icon.zip
