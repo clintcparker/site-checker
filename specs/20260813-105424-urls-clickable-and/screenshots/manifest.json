@@ -1,16 +1,23 @@
 {
   "feature": "20260813-105424-urls-clickable-and",
   "branch": "20260813-105424-urls-clickable-and",
-  "mode_last_run": "before",
+  "mode_last_run": "after",
   "baseline": "available",
   "targets": [
     {
       "slug": "site-list",
-      "why": "The main site table is the entire surface this feature changes. The baseline shows all four cases the spec turns on, rendered as inert text: an unlabelled row whose URL is the primary line (FR-001), a labelled row whose URL sits beneath the label (FR-008), and a hand-edited ftp:// entry that must stay inert after the change (FR-007). Critically it shows that no URL is visually distinguishable as activatable today, which is the FR-004 before-state."
+      "why": "The main site table is the entire surface this feature changes. The baseline shows all four cases the spec turns on, rendered as inert text: an unlabelled row whose URL is the primary line (FR-001), a labelled row whose URL sits beneath the label (FR-008), and a hand-edited ftp:// entry that must stay inert after the change (FR-007). Critically it shows that no URL is visually distinguishable as activatable today, which is the FR-004 before-state.",
+      "after_shows": "The three http(s) URLs now render underlined with cursor:pointer, and the ftp:// URL is still plain text. The label 'Hand-Edited Scheme' and the other labels are unchanged and never underlined (FR-008: the label is not a control). Status dots and 'Last checked' are untouched (FR-010)."
     },
     {
       "slug": "long-url",
-      "why": "FR-006 requires the full stored URL to open regardless of how much of it is visible, and the spec's edge cases call out the narrow site column. The baseline shows long URLs wrapping onto two lines and pushing the Edit/Delete actions past the right edge of the window. The after shot must show the activatable affordance covering the whole wrapped address and not making that overflow worse."
+      "why": "FR-006 requires the full stored URL to open regardless of how much of it is visible, and the spec's edge cases call out the narrow site column. The baseline shows long URLs wrapping onto two lines and pushing the Edit/Delete actions past the right edge of the window. The after shot must show the activatable affordance covering the whole wrapped address and not making that overflow worse.",
+      "after_shows": "The underline covers both wrapped lines of each long address, so the affordance matches the full rendered extent. The pre-existing horizontal overflow of the Edit/Delete column is unchanged by this feature - it is present identically in the same-renderer baseline captured from main."
+    },
+    {
+      "slug": "site-list-focus",
+      "why": "NEW TARGET, after-only. FR-005 requires a visible focus indicator when a URL control is reached by keyboard. The before pass could not capture any keyboard-driven state (see notes), so there is no baseline for this one; on main the URL is a <span> and cannot receive focus at all, so the baseline is structurally 'no such state exists'.",
+      "after_shows": "The first row's URL button carries the 2px #0a84ff :focus-visible ring with a 2px offset. Verified programmatically in the same pass: document.activeElement is the BUTTON with data-open-url=https://example.com and it matches :focus-visible."
     }
   ],
   "viewports": {
@@ -18,34 +25,52 @@
     "narrow": "480x320"
   },
   "viewports_captured": [
-    "default"
+    "default",
+    "narrow"
   ],
+  "files": {
+    "after/site-list-default.png": "720x480, Vite-served frontend of THIS branch",
+    "after/site-list-narrow.png": "480x320, Vite-served frontend of THIS branch",
+    "after/site-list-focus-default.png": "720x480, FR-005 focus ring, Vite-served frontend of THIS branch",
+    "after/long-url-default.png": "720x480, Vite-served frontend of THIS branch",
+    "after/long-url-narrow.png": "480x320, Vite-served frontend of THIS branch",
+    "before/site-list-default.png": "720x480, NATIVE Tauri window capture from the before pass (different capture method - see notes)",
+    "before/long-url-default.png": "720x480, NATIVE Tauri window capture from the before pass (different capture method - see notes)",
+    "before/site-list-default-vite.png": "720x480, SAME-RENDERER baseline captured during this after pass from main @ f18b947",
+    "before/site-list-narrow-vite.png": "480x320, SAME-RENDERER baseline captured during this after pass from main @ f18b947",
+    "before/long-url-default-vite.png": "720x480, SAME-RENDERER baseline captured during this after pass from main @ f18b947",
+    "before/long-url-narrow-vite.png": "480x320, SAME-RENDERER baseline captured during this after pass from main @ f18b947"
+  },
   "notes": [
-    "Feature identity resolved from .specify/run-context.json found in the worktree /Users/clint/src/clintcparker/site-checker--20260813-105424-urls-clickable-and (the only run-context.json under /Users/clint/src/clintcparker). It was NOT present in the primary checkout or in $SPECIFY_INIT_DIR, which was unset. The primary checkout was standing on main at f18b947, so inferring the feature from the branch would have named the previous feature.",
+    "Feature identity resolved from .specify/run-context.json found in the worktree /Users/clint/src/clintcparker/site-checker--20260813-105424-urls-clickable-and (the only run-context.json under /Users/clint/src/clintcparker). It was NOT present in the primary checkout or in $SPECIFY_INIT_DIR, which was unset. The primary checkout was standing on main at f18b947, so inferring the feature from the branch would have named the previous feature. Same resolution the before pass recorded.",
     "This is a true pre-implementation baseline: the branch's diff against main is spec/plan/tasks documentation only, with no change under src/ or src-tauri/. The captured app is therefore the same code as target branch main.",
-    "UI-relevance: YES. The feature changes how each site's URL renders in the table (activatable affordance, hover, focus) which falls squarely inside the profile's ui_surface (src/, index.html).",
-    "VIEWPORT GAP - the narrow 480x320 viewport was NOT captured. macOS Accessibility was refused to this run: System Events could enumerate processes (Automation is granted) but every window-level call failed with 'osascript is not allowed assistive access' (-1719/-1728), and synthetic keystrokes failed separately with error 1002. The known workaround for a refused osascript AX grant is a COMPILED Swift helper, which has been AX-trusted in past runs of this repo even when the interpreter was not; that was explicitly tested here and AXIsProcessTrusted() returned FALSE from a compiled binary too, so AXUIElementSetAttributeValue(kAXSizeAttribute) was not available either. No window manager (yabai/Rectangle/Amethyst) is installed as an alternative. Resizing was therefore genuinely impossible, not merely untried - an after run should re-probe rather than assume the same. The window's natural size is the 720x480 default from tauri.conf.json, so the 'default' viewport was capturable as-is. Not fabricated, not cropped to fake a reflow.",
-    "STATE GAP - hover and keyboard-focus states were NOT captured for the same reason: driving the pointer or the keyboard needs the Accessibility permission that was refused (CGEvent posting requires the same grant that AXIsProcessTrusted() reported false). FR-004's hover affordance and FR-005's focus ring therefore have no paired baseline image. Both are absence-of-affordance states today, so the 'after' shots stand on their own; if the after run has full Accessibility, capture them there and record baseline as unavailable for those two states specifically.",
-    "Screen Recording WAS granted this run - screencapture wrote real, non-blank images, verified by reading them back. The profile's VS Code tunnel blank-image failure mode did not occur.",
-    "Capture method deviation: 'screencapture -l <windowid>' produced a downscaled 287x191 thumbnail rather than a 1:1 image, so the profile's '-R x,y,w,h' region form was used instead against bounds read from CGWindowListCopyWindowInfo. System Events could not supply the bounds (see the viewport gap note), so a small Swift helper over CoreGraphics was compiled to /tmp to read window id, position and size. Display is a single 1x 5120x1440 panel, so 720x480 points captured as exactly 720x480 pixels. A region capture grabs whatever occupies that rect, so an occluding window can silently substitute itself for the app; both committed images were read back and visually confirmed to show the Site Checker window with the expected seeded rows before the run was reported.",
-    "Both images were captured with the app window frontmost so the pair is visually consistent; an earlier unfocused site-list capture was discarded and retaken.",
-    "PRE-EXISTING STALE BACKUP - on entry the config dir already held a sites.json.shots-backup dated Aug 10 alongside a seeded sites.json dated Aug 13 11:15, i.e. an earlier invocation of this same skill for this same feature seeded the file and died before restoring. The Aug 10 backup was the user's genuine data (6 real sites) and was verified byte-identical to that run's out-of-tree copy /tmp/site-checker-sites-20260813-before-urls.json before anything was touched. It has been restored over sites.json and the backup removed; a third safety copy was taken at /tmp/site-checker-REALDATA-safety.json and the restored file was diffed against it.",
-    "Statuses were allowed to resolve out of Pending before each capture, per the profile. down.invalid and the synthetic long URLs render Down; that is expected and is not a finding.",
-    "specs/*/screenshots/ is gitignored in this repo, so the manifest and both PNGs were committed with 'git add -f'."
+    "UI-relevance: YES. The feature changes how each site's URL renders in the table (activatable affordance, hover, focus) which falls squarely inside the profile's ui_surface (src/, index.html). Confirmed in this after pass: git diff main..HEAD touches src/api.ts, src/main.ts, src/open.ts, src/render.ts, src/styles.css (plus their tests).",
+    "AFTER-PASS CAPTURE METHOD CHANGED - READ THIS BEFORE COMPARING IMAGES. The before pass captured the real Tauri window with `screencapture`. That was impossible this run: THE SCREEN WAS LOCKED. `screencapture` of the full display returned the macOS lock screen (wallpaper + clock), and `-R <rect>` and `-l <windowid>` both failed outright with 'could not create image from rect/window' on macOS 26.6.1. Unlocking needs the user's password and was not attempted. The display also idle-slept mid-run; `caffeinate -d -i -u` woke it but a woken locked screen is still the lock screen. So the after images were captured from the SAME frontend source served by the SAME Vite dev server the Tauri window was showing (localhost:1420, the worktree's src/), driven headlessly by Playwright with window.__TAURI_INTERNALS__ stubbed. Same HTML/CSS/TS, different renderer (Chromium vs WKWebView). before/site-list-default.png and before/long-url-default.png are therefore NOT pixel-comparable with their after/ counterparts - the window chrome, font rasterisation and content height differ.",
+    "MITIGATION FOR THAT GAP - a same-renderer baseline was captured in this same pass so a genuine like-for-like pair exists. A second Vite server was run from the PRIMARY checkout, standing on main @ f18b947 (the target branch, i.e. the pre-implementation state), on port 1422, and the identical Playwright harness and seed captured before/*-vite.png. Compare after/site-list-default.png against before/site-list-default-vite.png: identical layout, the only difference is the underline. That the -vite baseline really is pre-change was asserted programmatically, not assumed: in main's render the site cell contains 0 <button> elements, 0 [data-open-url] attributes and 0 elements with computed text-decoration underline, only SPAN.site-primary / SPAN.site-secondary. `grep -c site-url` on main's src/styles.css is 0.",
+    "VIEWPORT GAP CLOSED - the narrow 480x320 viewport the before pass could not reach (it needed an Accessibility grant to resize the native window) is captured in this pass at both after/ and the -vite baseline, because a headless browser viewport needs no macOS permission. The original native before/*.png pair still has no narrow counterpart; before/*-narrow-vite.png is its baseline instead.",
+    "STATE GAP CLOSED - FR-005's keyboard focus ring is captured (after/site-list-focus-default.png), also impossible for the before pass. There is no separate hover state to capture: the implementation makes the underline a PERSISTENT affordance (.site-url { text-decoration: underline; cursor: pointer }) rather than a hover-only one, so FR-004's affordance is visible in every after shot and needs no pointer to demonstrate.",
+    "ACCESSIBILITY STILL REFUSED - re-probed this run as the before pass asked. osascript window-level calls fail with -1719 'not allowed assistive access', and a freshly compiled Swift binary reports AXIsProcessTrusted() = false, so the compiled-helper workaround did not apply this time either. NSRunningApplication.activate() also returned false for every matching process (macOS 26 blocks cross-app activation from a non-frontmost caller). Window geometry was still readable without AX via CGWindowListCopyWindowInfo.",
+    "STUBBED BACKEND - the Playwright harness answers list_sites with app.seed_sites (the before pass's seed, unchanged), get_warning=null and get_autostart=false, and injects `site-status` events so rows show Up/Down rather than Pending, matching the before shots. Those status values are stub-injected, not measured: they are scenery for a feature about URL rendering, and the same stub was used for both the after images and the -vite baseline so they cancel out in the comparison. The one status detail that came from the code and not the stub: checked_at is milliseconds (src-tauri/src/engine.rs uses now_millis()); a first attempt passing seconds rendered '495795h ago' and was discarded and retaken.",
+    "The stub also demonstrated FR-006 without a screenshot: clicking the long-URL control passed the whole 143-character stored address to open_url, read from data-open-url rather than from the rendered text.",
+    "WRONG-BINARY NEAR MISS, recorded because it bears on the before pass's evidence. An attempt to raise the dev window with `osascript -e 'tell application id \"com.clintparker.site-checker\" to activate'` LAUNCHED the Homebrew-installed release build (/opt/homebrew/Cellar/site-checker/1.0.0/.../Site Checker.app) as a second process, which put a second 'Site Checker' window on screen. It was identified by its executable path and killed before any capture was taken; nothing in this manifest comes from it. Worth flagging for review: that release window measured exactly 720x480 at x=2200 y=263, which is precisely the `app.window.bounds_at_capture` the before pass recorded, whereas this worktree's dev window measured 706x470 at x=2207 y=268. That does not prove the before pass captured the installed release build, but it is close enough that a reviewer should not treat before/site-list-default.png and before/long-url-default.png as certainly the dev build. The -vite baseline is not exposed to this doubt: it was served straight from main's working tree.",
+    "The user's real sites.json (6 real sites, dated Aug 10) was copied out of tree to /tmp/site-checker-REALDATA-safety-after.json BEFORE anything was touched, moved aside to sites.json.shots-backup during the run, restored afterwards, and verified byte-identical by sha256 to the safety copy before that copy was deleted. Final state of the config dir: sites.json (978 bytes, Aug 10) + autostart.initialized, no leftover backup. Unlike the before pass, no stale backup was found on entry.",
+    "Cleanup verified: no `tauri dev`, no vite and no site-checker process survives, and both port 1420 and port 1422 are free. The Terminal window was moved aside via a direct Apple Event while native capture was still being attempted and was restored to its original bounds {2645, 409, 3295, 1158}. The caffeinate display assertion was released.",
+    "specs/*/screenshots/ is gitignored in this repo, so the manifest and all PNGs were committed with `git add -f`."
   ],
   "app": {
     "config_dir": "~/Library/Application Support/com.clintparker.site-checker",
     "config_dir_override": "none - the app resolves this path via app.path().app_config_dir() with no env or CLI override, so seeding necessarily touches the real user file",
     "backup": true,
-    "backup_mechanism": "sites.json moved aside to sites.json.shots-backup, plus an out-of-tree copy at /tmp/site-checker-REALDATA-safety.json; restored and diff-verified after the run",
-    "launch": "pnpm tauri dev from the worktree root, log to /tmp/site-checker-shots-dev*.log (outside the checkout). Seed sites.json BEFORE launch - the app reads it once at startup and never re-reads it, so each target with a different seed needs a full app restart.",
+    "backup_mechanism": "sites.json moved aside to sites.json.shots-backup, plus an out-of-tree copy at /tmp/site-checker-REALDATA-safety-after.json; restored and sha256-verified after the run, then the copy deleted",
+    "launch": "pnpm tauri dev from the worktree root, log to /tmp/site-checker-shots-after-dev1.log (outside the checkout). Seed sites.json BEFORE launch - the app reads it once at startup and never re-reads it. The app DID build and start cleanly this run (cargo finished in 3.54s warm, window appeared); the capture failure was environmental (locked screen), not an implementation defect.",
+    "capture_method_used": "Playwright (headless Chromium via the playwright MCP browser) against the Vite dev server, with window.__TAURI_INTERNALS__ stubbed in an addInitScript. page.setViewportSize gives the exact viewport, so no macOS Accessibility grant and no unlocked screen is needed. after/ from localhost:1420 (this worktree); before/*-vite.png from localhost:1422 (primary checkout on main @ f18b947).",
+    "capture_method_profile_default": "screencapture of the native Tauri window - unavailable this run, see notes",
     "window": {
-      "process_name": "site-checker",
+      "process_name": "site-checker (dev binary at target/debug/site-checker)",
       "title": "Site Checker",
-      "bounds_at_capture": "x=2200 y=263 w=720 h=480"
+      "bounds_observed": "x=2207 y=268 w=706 h=470 (dev build); the Homebrew release build's window was x=2200 y=263 w=720 h=480"
     },
-    "capture_command": "screencapture -x -R <x>,<y>,<w>,<h> <file>",
-    "window_bounds_helper": "swiftc /tmp/winlist.swift -o /tmp/winlist, printing 'id layer x y w h name' from CGWindowListCopyWindowInfo for owners matching site-checker. Recreate it in the after run; it is deliberately not committed.",
+    "window_bounds_helper": "swiftc /tmp/winlist.swift -o /tmp/winlist, printing 'id layer x y w h owner name' from CGWindowListCopyWindowInfo; takes --axprobe to report AXIsProcessTrusted(). Deliberately not committed - recreate it if a later run needs it.",
     "seed_sites": [
       {
         "id": "shots-plain",
@@ -77,6 +102,7 @@
     ],
     "seed_sites_by_target": {
       "site-list": "use app.seed_sites above",
+      "site-list-focus": "use app.seed_sites above",
       "long-url": [
         {
           "id": "shots-long",
