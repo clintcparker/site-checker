@@ -133,18 +133,29 @@ pub fn delete_site(state: State<'_, AppState>, id: String) -> Result<(), String>
     Ok(())
 }
 
+/// The login-item manager, or the reason there isn't one.
+///
+/// `setup` declines to register a manager when it cannot work out where the
+/// running copy lives (FR-008 — it starts anyway rather than failing). Both
+/// commands then report that instead of panicking on an unmanaged `State`;
+/// the frontend already turns either error into a banner and a disabled box.
+fn autolaunch(app: &tauri::AppHandle) -> Result<State<'_, auto_launch::AutoLaunch>, String> {
+    app.try_state::<auto_launch::AutoLaunch>().ok_or_else(|| {
+        "Site Checker could not determine its own location, so it cannot manage the login item."
+            .to_string()
+    })
+}
+
 #[tauri::command]
 pub fn get_autostart(app: tauri::AppHandle) -> Result<bool, String> {
-    app.state::<auto_launch::AutoLaunch>()
-        .is_enabled()
-        .map_err(|e| e.to_string())
+    autolaunch(&app)?.is_enabled().map_err(|e| e.to_string())
 }
 
 /// Returns the state actually in effect afterwards, so the checkbox can
 /// correct itself if the OS refused the change.
 #[tauri::command]
 pub fn set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
-    let manager = app.state::<auto_launch::AutoLaunch>();
+    let manager = autolaunch(&app)?;
     let result = if enabled {
         manager.enable()
     } else {

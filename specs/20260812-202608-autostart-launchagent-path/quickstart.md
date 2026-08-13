@@ -103,11 +103,19 @@ Relaunch the app.
 
 ### 2d. Nothing can stop the app starting (FR-008, SC-006)
 
-Repeat 2b and 2c with `~/Library/LaunchAgents` made unwritable (`chmod 500`), so the rewrite itself
-fails.
+Repeat 2b with the *plist itself* made unwritable, so the rewrite fails:
 
-**Expected**: the app still starts, the window still lists your sites, no warning. Restore with
-`chmod 700 ~/Library/LaunchAgents`.
+```sh
+chmod 400 ~/Library/LaunchAgents/"Site Checker.plist"
+```
+
+**Expected**: the app still starts, the window still lists your sites, no warning, and the file still
+holds the stale path. Restore with `chmod 644 ~/Library/LaunchAgents/"Site Checker.plist"`.
+
+> Make the **file** read-only, not the directory. `chmod 500 ~/Library/LaunchAgents` does not fail
+> the rewrite — truncating an existing file needs write permission on the file, not on its parent —
+> so the directory-only form silently proves nothing. Demonstrated in QA: `qa/responses/harness-*.txt`,
+> check `H13b`.
 
 ---
 

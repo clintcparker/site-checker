@@ -21,8 +21,17 @@ pub fn run() {
             // Owned rather than left to tauri-plugin-autostart, which always
             // records `current_exe()` — the version-scoped Cellar path on a
             // Homebrew install, which the next `brew upgrade` deletes.
-            let autolaunch = autostart::manager(app.handle())?;
-            app.manage(autolaunch);
+            //
+            // Not `?`: FR-008 forbids any failure in this feature from stopping
+            // startup, and `manager` is fallible for a reason that is squarely
+            // in scope — it canonicalises `current_exe()`, which fails with
+            // ENOENT when the running copy's own path has been removed, which
+            // is precisely what `brew upgrade` does to the keg. Without a
+            // manager the app leaves the login item entirely alone and starts
+            // as normal; the checkbox reports why (see `commands::autolaunch`).
+            if let Ok(autolaunch) = autostart::manager(app.handle()) {
+                app.manage(autolaunch);
+            }
 
             // ~/Library/Application Support/com.clintparker.site-checker/
             let path = app.path().app_config_dir()?.join("sites.json");
@@ -46,7 +55,15 @@ pub fn run() {
             // unchecking the box sticks across restarts.
             let marker = app.path().app_config_dir()?.join("autostart.initialized");
             if !marker.exists() {
-                if let Err(e) = app.state::<auto_launch::AutoLaunch>().enable() {
+                // `try_state`, because the manager above is now allowed to be
+                // absent. An absent one is reported the same way a refused
+                // `enable()` is — a warning the user can act on, never a
+                // failure to start.
+                let registered = match app.try_state::<auto_launch::AutoLaunch>() {
+                    Some(manager) => manager.enable().map_err(|e| e.to_string()),
+                    None => Err("its own location could not be determined".to_string()),
+                };
+                if let Err(e) = registered {
                     // Store-load warning takes precedence if one already
                     // occurred; don't clobber it with the less-critical
                     // autostart message.
@@ -70,9 +87,12 @@ pub fn run() {
             // finds nothing to do. It cannot create or remove a registration
             // and cannot fail — a user who turned launch-at-login off stays
             // off, and startup carries on regardless.
-            if let Ok(home) = app.path().home_dir() {
+            if let (Some(manager), Ok(home)) = (
+                app.try_state::<auto_launch::AutoLaunch>(),
+                app.path().home_dir(),
+            ) {
                 autostart::repair_if_stale(
-                    &app.state::<auto_launch::AutoLaunch>(),
+                    &manager,
                     &home
                         .join("Library/LaunchAgents")
                         .join(format!("{}.plist", app.package_info().name)),

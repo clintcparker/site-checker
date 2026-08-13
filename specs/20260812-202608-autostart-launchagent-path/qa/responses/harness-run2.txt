@@ -1,0 +1,55 @@
+PASS H1  TC-001 — FR-001/FR-002 US1-2: a keg path registers the version-independent opt path
+      running=/private/tmp/sc-qa-harness/sandbox/brew/Cellar/site-checker/1.0.0/libexec/Site Checker.app/Contents/MacOS/site-checker
+      desired=/private/tmp/sc-qa-harness/sandbox/brew/opt/site-checker/libexec/Site Checker.app/Contents/MacOS/site-checker
+PASS H7  TC-019 — Contract: the real auto-launch 0.5.0 template round-trips through recorded_path()
+      plist under fake HOME=/tmp/sc-qa-harness/sandbox/home/Library/LaunchAgents/Site Checker.plist
+      recorded=Some("/private/tmp/sc-qa-harness/sandbox/brew/opt/site-checker/libexec/Site Checker.app/Contents/MacOS/site-checker")
+PASS H7b TC-019 — Contract: the recorded path contains a space and survives the round trip
+      recorded=Some("/private/tmp/sc-qa-harness/sandbox/brew/opt/site-checker/libexec/Site Checker.app/Contents/MacOS/site-checker")
+PASS H2  TC-006 — SC-001 US1-1 (simulated): the registration survives an upgrade that deletes the old keg
+      recorded=/private/tmp/sc-qa-harness/sandbox/brew/opt/site-checker/libexec/Site Checker.app/Contents/MacOS/site-checker
+      exists=true, resolves to 1.0.1=true
+PASS H2b TC-006 — Counterfactual: registering the running keg path (pre-fix behaviour) dangles after the upgrade
+      pre-fix would have recorded=/private/tmp/sc-qa-harness/sandbox/brew/Cellar/site-checker/1.0.0/libexec/Site Checker.app/Contents/MacOS/site-checker (now missing)
+PASS H3  TC-002 — FR-004/SC-004 US1-3: a dev build registers its own path, byte for byte
+      running=/private/tmp/sc-qa-harness/sandbox/dev/src-tauri/target/debug/site-checker
+      desired=/private/tmp/sc-qa-harness/sandbox/dev/src-tauri/target/debug/site-checker
+PASS H3b TC-002 — FR-004: a hand-placed /Applications copy registers its own path
+      desired=/private/tmp/sc-qa-harness/sandbox/Applications/Site Checker.app/Contents/MacOS/site-checker
+PASS H4  TC-003 — FR-003: with the opt link gone (brew unlink), the running keg path is registered
+      desired=/private/tmp/sc-qa-harness/sandbox/brew/Cellar/site-checker/1.0.1/libexec/Site Checker.app/Contents/MacOS/site-checker
+PASS H4b TC-003 — FR-003: an opt path that resolves to a DIFFERENT application is rejected
+      desired=/private/tmp/sc-qa-harness/sandbox/brew/Cellar/site-checker/1.0.1/libexec/Site Checker.app/Contents/MacOS/site-checker
+PASS H5  TC-004 — Edge: a user directory named `Cellar` never produces a bogus registration
+      running=/private/tmp/sc-qa-harness/sandbox/home/Documents/Cellar/wine-notes/2024/notes/site-checker
+      desired=/private/tmp/sc-qa-harness/sandbox/home/Documents/Cellar/wine-notes/2024/notes/site-checker
+PASS H6  TC-005 — Edge: launching through the /Applications shortcut records the identical opt path
+      canonicalised=/private/tmp/sc-qa-harness/sandbox/brew/Cellar/site-checker/1.0.1/libexec/Site Checker.app/Contents/MacOS/site-checker
+      desired=/private/tmp/sc-qa-harness/sandbox/brew/opt/site-checker/libexec/Site Checker.app/Contents/MacOS/site-checker
+PASS H8  TC-007 — FR-005/SC-002 US2-1: a stale registration is rewritten to the desired path
+      before=Some("/opt/homebrew/Cellar/site-checker/0.0.0/libexec/Site Checker.app/Contents/MacOS/site-checker")
+      after =Some("/private/tmp/sc-qa-harness/sandbox/brew/opt/site-checker/libexec/Site Checker.app/Contents/MacOS/site-checker")
+PASS H12 TC-011 — FR-009/SC-005: the registration stays enabled across the repair (checkbox unchanged)
+      is_enabled before=true, after=true
+PASS H10 TC-009 — US2-3: a registration already naming the desired path is left byte-for-byte untouched
+      449 bytes, unchanged
+PASS H9  TC-008 — FR-006 US2-2: with no registration present, repair creates nothing
+      exists=false, is_enabled=false
+PASS H11 TC-010 — FR-007 US2-4: an uninterpretable registration (empty file) is left untouched
+      0 bytes in, 0 bytes out, identical
+PASS H11 TC-010 — FR-007 US2-4: an uninterpretable registration (not a plist) is left untouched
+      18 bytes in, 18 bytes out, identical
+PASS H11 TC-010 — FR-007 US2-4: an uninterpretable registration (truncated xml) is left untouched
+      61 bytes in, 61 bytes out, identical
+PASS H11 TC-010 — FR-007 US2-4: an uninterpretable registration (binary plist) is left untouched
+      11 bytes in, 11 bytes out, identical
+PASS H11 TC-010 — FR-007 US2-4: an uninterpretable registration (empty array) is left untouched
+      43 bytes in, 43 bytes out, identical
+PASS H13 TC-012 — FR-008/SC-006: a rewrite that fails (read-only plist) is swallowed; execution continues
+      plist mode 400, repair returned normally, 432 bytes unchanged (still the stale path)
+PASS H13b TC-012 — quickstart §2d as written (chmod 500 on the DIRECTORY) does not make the rewrite fail
+      with the directory read-only the rewrite still SUCCEEDED (recorded=Some("/private/tmp/sc-qa-harness/sandbox/brew/opt/site-checker/libexec/Site Checker.app/Contents/MacOS/site-checker")) — confirms implementation-notes: §2d must chmod the file, not the directory
+PASS H14 TC-017 — FR-012: no path reached from startup removes the registration
+      the registration is still present after every repair scenario above
+
+23 checks run, 0 failed

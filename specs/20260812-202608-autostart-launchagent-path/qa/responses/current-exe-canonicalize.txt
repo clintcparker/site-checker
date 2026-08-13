@@ -1,0 +1,2 @@
+current_exe()            = Ok("/private/tmp/sc-qa-exe/victim")
+current_exe().canonicalize() = Err(Os { code: 2, kind: NotFound, message: "No such file or directory" })
