@@ -283,6 +283,26 @@ Launching at login SHALL be enabled once, on first run only, and a later deliber
 - **WHEN** enabling fails on first run
 - **THEN** the user is told, and the app does not retry on every future launch
 
+### The launch-at-login registration survives an upgrade
+
+The location recorded for launch-at-login SHALL be one that outlives the installed version, whenever the running copy has such a location; otherwise the running copy's own location is recorded, exactly as before. A registration naming some other location SHALL be rewritten on start — never created, never removed, and never reported as a problem.
+
+#### Scenario: a package-managed copy is registered
+- **WHEN** the running copy has a version-independent location that resolves to it
+- **THEN** that location is what gets recorded, so replacing the version leaves the registration working
+
+#### Scenario: no version-independent location exists
+- **WHEN** the running copy is hand-built, or is a development build, or its version-independent location does not resolve back to it
+- **THEN** the running copy's own location is recorded, unchanged from previous behaviour
+
+#### Scenario: an existing registration names the wrong location
+- **WHEN** the app starts and finds a registration naming anything other than the location it would record now
+- **THEN** the registration is rewritten in place and stays enabled
+
+#### Scenario: there is no registration, or it cannot be read
+- **WHEN** the app starts and finds no registration, or one not in the shape the app writes
+- **THEN** nothing is created, nothing is changed, no warning is shown, and startup continues normally
+
 ### Closing the window ends the app
 
 Closing the window SHALL terminate the process. A windowless process lingering in the background is explicitly not wanted for this app.
