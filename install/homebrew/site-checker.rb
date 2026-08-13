@@ -121,6 +121,12 @@ class SiteChecker < Formula
       Spotlight and Launchpad do not index apps through a symlink, so use the
       `site-checker` command or open it from Finder.
 
+      Site Checker opens at login by default, which registers
+        ~/Library/LaunchAgents/Site Checker.plist
+      Homebrew does not remove it. Along with the symlink above, it is hand-made
+      and hand-removed — `brew uninstall site-checker` leaves both behind:
+        rm ~/Library/LaunchAgents/"Site Checker.plist"
+
       This build is signed ad-hoc rather than notarized, which is why it is a
       formula: nothing quarantines it, so it opens without a security prompt.
       What that does not give you is proof the bytes you got are the bytes that

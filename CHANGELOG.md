@@ -2,6 +2,49 @@
 
 All notable changes to Site Checker are recorded here.
 
+## Launch at login survives a `brew upgrade` — 2026-08-12
+
+Fixes [#25](https://github.com/clintcparker/site-checker/issues/25). Nothing changes on
+screen; the frontend is untouched, byte for byte.
+
+- **The login item stopped surviving upgrades, silently.** Turning on "Launch at login"
+  recorded the *exact copy* of the app that happened to be running — for a Homebrew install,
+  a version-numbered path under `Cellar/site-checker/1.0.0/…`. The next upgrade deletes that
+  directory. macOS was left holding a login item pointing at nothing, Site Checker stopped
+  opening at login, and the checkbox in the app still said the feature was on. Nobody had hit
+  it yet only because there had been no upgrade; it breaks on the first one.
+- **The registration now names the version-independent path.** A new
+  `src-tauri/src/autostart.rs` derives `<prefix>/opt/site-checker/libexec/Site Checker.app/…`
+  from the running executable's own location — the path Homebrew relinks on every upgrade —
+  and registers that instead. It is derived rather than configured, so a non-default or
+  relocated Homebrew prefix works with no setup. The derived path is accepted only if it
+  exists *and* `canonicalize()`s back to the running executable; otherwise the running copy's
+  own path is recorded, exactly as before. Development builds and hand-placed
+  `/Applications` copies are therefore unaffected.
+- **Existing broken registrations repair themselves.** On every start, a registration naming
+  something other than the desired path is rewritten in place. It never *creates* one where
+  none exists, never changes the enabled state, and never deletes one — removal stays a
+  documented, user-performed step. A registration it cannot parse is left untouched with no
+  message.
+- **`tauri-plugin-autostart` was replaced with `auto-launch` directly.** The plugin cannot be
+  told which path to register, which is the entire fix. Nothing else in the repo used it —
+  `capabilities/default.json` never granted its JS commands and there was no companion npm
+  package — so the swap is a net −30 lines of lockfile.
+- **Every failure path on this route is swallowed.** A failure registering or repairing cannot
+  stop the app starting and cannot touch the site list. The manager is now optional managed
+  state: if the running executable's own path will not resolve — the realistic case being an
+  upgrade deleting the keg mid-launch — the app opens anyway, the checkbox reports the same
+  "could not turn on" banner it already had for a refused enable, and repair is skipped.
+- **Both uninstall surfaces now name the LaunchAgent.** The README's `### Uninstall` section
+  and the formula's `caveats` carry the identical
+  `rm ~/Library/LaunchAgents/"Site Checker.plist"`, so a user who never reads the README still
+  sees it.
+- **What a checkout cannot prove.** A real `brew install` and a real `brew upgrade` need a
+  released bottle containing this change, which does not exist until this ships. Coverage
+  today is 30 new unit tests over path derivation plus a `tempfile` test that builds a real
+  `opt/<formula>` symlink to a real keg. The first release after this lands is the first
+  chance to confirm the fix against an actual upgrade.
+
 ## Dependabot ignores made functional; four pins moved past the evaluated set — 2026-08-12
 
 Nothing user-visible. A correction to the entry below, which describes pins that

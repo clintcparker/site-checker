@@ -1,0 +1,13 @@
+
+> site-checker@0.0.0 test /Users/clint/src/clintcparker/site-checker--20260812-202608-autostart-launchagent-path
+> vitest run
+
+
+ RUN  v4.1.10 /Users/clint/src/clintcparker/site-checker--20260812-202608-autostart-launchagent-path
+
+
+ Test Files  6 passed (6)
+      Tests  47 passed (47)
+   Start at  21:11:02
+   Duration  366ms (transform 173ms, setup 0ms, import 283ms, tests 80ms, environment 1.20s)
+
