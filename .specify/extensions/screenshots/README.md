@@ -39,6 +39,45 @@ Two filled-in profiles are in [`examples/`](examples/): an ASP.NET Razor Pages
 app captured with Playwright, and a Tauri desktop app captured with AppleScript
 and `screencapture`.
 
+## Which feature it screenshots
+
+Step 1 resolves `FEATURE_DIR` from `$SPECIFY_FEATURE_DIRECTORY`, then
+`.specify/run-context.json`, then
+`check-prerequisites.sh --paths-only --json` — pinned run state first, the
+checkout last.
+
+`--paths-only` matters. The plain `check-prerequisites.sh --json` form validates
+before it reports and one of its gates is `plan.md`, so it exits 1 on any feature
+that never ran `/speckit-plan`; a screenshot pass needs a feature *directory*, not
+a plan. A feature with no `spec.md` either is a supported input — with nothing to
+read, the command captures the baseline rather than skipping, because an
+unnecessary baseline costs two PNGs and a missing one cannot be recreated after
+the implementation lands.
+
+The script's answer is also cross-checked against the pinned one. Unpinned, it
+resolves from `.specify/feature.json`, which in a primary checkout right after a
+merge names the feature that just shipped — and it exits 0 on it. A disagreement
+stops the command, naming both paths, rather than screenshotting whichever tree
+the session happens to be standing in.
+
+[docs/core-helper-scripts.md](../../docs/core-helper-scripts.md) has the
+upstream-side patch for the same two holes.
+
+## Tracked, not force-added
+
+The pull request body links these images by path, so they have to be *tracked* —
+an image git considers ignored is never in the pushed head and its URL 404s for
+every reviewer. Plenty of repos ignore `screenshots/` or `specs/*/screenshots/`
+for unrelated reasons, and the workaround people reach for, `git add -f`, fixes
+one commit and leaves the next step with the same conflict.
+
+Step 2 of the command resolves it once instead: if `git check-ignore` reports a
+rule against `FEATURE_DIR/screenshots/`, it appends `!screenshots/` to
+`FEATURE_DIR/.gitignore` and commits that file. A `.gitignore` inside the feature
+directory outranks the repo root's, so plain `git add` works from then on — for
+the after pass, for `speckit.ship.run`, and in the reviewer's checkout. The
+repo's own ignore rule is left exactly as it was.
+
 ## Manifest
 
 `FEATURE_DIR/screenshots/manifest.json`:

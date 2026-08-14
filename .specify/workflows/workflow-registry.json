@@ -11,31 +11,33 @@
     },
     "send-it": {
       "name": "Spec to PR, unattended",
-      "version": "0.3.1",
+      "version": "0.9.0",
       "description": "worktree \u2192 specify \u2192 plan \u2192 tasks \u2192 screenshots \u2192 implement \u2192 screenshots \u2192 ship; no gates, ends in an open PR with before/after UI screenshots. Requires the `worktrees`, `screenshots` and `ship` extensions.",
       "source": "catalog",
       "catalog_name": "catalog-1",
-      "url": "https://raw.githubusercontent.com/clintcparker/speckit-addons/send-it-v0.3.1/workflows/send-it/workflow.yml",
+      "url": "https://raw.githubusercontent.com/clintcparker/speckit-addons/send-it-v0.9.0/workflows/send-it/workflow.yml",
       "installed_at": "2026-08-05T21:48:41.701270+00:00",
-      "updated_at": "2026-08-07T01:57:16.874441+00:00"
+      "updated_at": "2026-08-14T00:53:40.825698+00:00"
     },
     "yolo": {
       "name": "Full SDD Cycle - no gates",
-      "version": "0.2.1",
+      "version": "0.8.0",
       "description": "Runs worktree \u2192 specify \u2192 plan \u2192 tasks \u2192 implement without review gates. Requires the `worktrees` extension.",
       "source": "catalog",
       "catalog_name": "catalog-1",
-      "url": "https://raw.githubusercontent.com/clintcparker/speckit-addons/yolo-v0.2.1/workflows/yolo/workflow.yml",
+      "url": "https://raw.githubusercontent.com/clintcparker/speckit-addons/yolo-v0.8.0/workflows/yolo/workflow.yml",
       "installed_at": "2026-08-05T21:48:42.055990+00:00",
-      "updated_at": "2026-08-07T01:57:18.256471+00:00"
+      "updated_at": "2026-08-14T00:53:41.015669+00:00"
     },
     "send-it-checked": {
       "name": "Spec to PR, unattended, with review and QA",
-      "version": "0.7.0",
+      "version": "0.10.0",
       "description": "send-it plus staff review and QA, each with one fix-and-re-run pass, before shipping \u2014 with before/after UI screenshots. Requires the `worktrees`, `screenshots`, `ship`, `staff-review` and `qa` extensions.",
-      "source": "https://raw.githubusercontent.com/clintcparker/speckit-addons/main/workflows/send-it-checked/workflow.yml",
+      "source": "catalog",
+      "catalog_name": "catalog-1",
+      "url": "https://raw.githubusercontent.com/clintcparker/speckit-addons/send-it-checked-v0.10.0/workflows/send-it-checked/workflow.yml",
       "installed_at": "2026-08-12T23:36:59.492632+00:00",
-      "updated_at": "2026-08-12T23:36:59.492643+00:00"
+      "updated_at": "2026-08-14T00:54:10.604019+00:00"
     }
   }
 }

@@ -3,7 +3,7 @@ schema_version: "1.0"
 extension:
   id: "screenshots"
   name: "UI Screenshots"
-  version: "0.1.0"
+  version: "0.3.0"
   description: "Captures before/after UI screenshots for a feature and stages them on the branch for embedding in the pull request"
   author: "clintcparker"
   repository: "https://github.com/clintcparker/speckit-addons"

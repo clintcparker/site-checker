@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-08-11T00:00:00Z",
+  "updated_at": "2026-08-13T00:00:00Z",
   "catalog_url": "https://raw.githubusercontent.com/github/spec-kit/main/extensions/catalog.community.json",
   "extensions": {
     "adrkit": {
@@ -395,6 +395,51 @@
       "stars": 0,
       "created_at": "2026-03-14T00:00:00Z",
       "updated_at": "2026-08-11T00:00:00Z"
+    },
+    "atlas": {
+      "name": "spec-kit-atlas",
+      "id": "atlas",
+      "description": "Synthesize spec-kit specs into faithful, interactive architecture storybooks & doc portals.",
+      "author": "Ash Brener",
+      "version": "0.1.0",
+      "download_url": "https://github.com/ashbrener/spec-kit-atlas/archive/refs/tags/v0.1.0.zip",
+      "repository": "https://github.com/ashbrener/spec-kit-atlas",
+      "homepage": "https://github.com/ashbrener/spec-kit-atlas",
+      "documentation": "https://github.com/ashbrener/spec-kit-atlas/blob/main/README.md",
+      "changelog": "https://github.com/ashbrener/spec-kit-atlas/blob/main/CHANGELOG.md",
+      "license": "MIT",
+      "category": "docs",
+      "effect": "read-only",
+      "requires": {
+        "speckit_version": ">=0.1.0",
+        "tools": [
+          {
+            "name": "python",
+            "version": ">=3.11",
+            "required": true
+          },
+          {
+            "name": "uv",
+            "required": true
+          }
+        ]
+      },
+      "provides": {
+        "commands": 2,
+        "hooks": 0
+      },
+      "tags": [
+        "documentation",
+        "architecture",
+        "storybook",
+        "traceability",
+        "atlas"
+      ],
+      "verified": false,
+      "downloads": 0,
+      "stars": 0,
+      "created_at": "2026-08-13T00:00:00Z",
+      "updated_at": "2026-08-13T00:00:00Z"
     },
     "azure-devops": {
       "name": "Azure DevOps Integration",
@@ -4218,6 +4263,91 @@
       "stars": 0,
       "created_at": "2026-04-30T00:00:00Z",
       "updated_at": "2026-04-30T00:00:00Z"
+    },
+    "specassay-check": {
+      "name": "SpecAssay Check",
+      "id": "specassay-check",
+      "description": "Gate 2 refuses silent gaps and emits a trace-manifest (trace-manifest.json).",
+      "author": "Rik Dryfoos",
+      "version": "0.3.3",
+      "download_url": "https://github.com/rdryfoos/specassay/releases/download/v0.3.3/specassay-check-0.3.3.zip",
+      "repository": "https://github.com/rdryfoos/specassay",
+      "homepage": "https://www.specassay.com",
+      "documentation": "https://github.com/rdryfoos/specassay/blob/main/extensions/specassay-check/README.md",
+      "changelog": "https://github.com/rdryfoos/specassay/blob/main/CHANGELOG.md",
+      "license": "MIT",
+      "category": "visibility",
+      "effect": "read-write",
+      "requires": {
+        "speckit_version": ">=0.14.0",
+        "tools": [
+          {
+            "name": "bash",
+            "required": true
+          },
+          {
+            "name": "python3",
+            "version": ">=3.8",
+            "required": true
+          }
+        ]
+      },
+      "provides": {
+        "commands": 1,
+        "hooks": 1
+      },
+      "tags": [
+        "traceability",
+        "gate",
+        "ci",
+        "governance",
+        "sdd"
+      ],
+      "verified": false,
+      "downloads": 0,
+      "stars": 0,
+      "created_at": "2026-08-13T00:00:00Z",
+      "updated_at": "2026-08-13T00:00:00Z"
+    },
+    "specjudge": {
+      "name": "SpecJudge \u2014 right-size the model before you implement",
+      "id": "specjudge",
+      "description": "Recommends the model that fits your tasks, citing the spec fragment behind every level.",
+      "author": "Joaqu\u00edn Ruiz",
+      "version": "0.5.4",
+      "download_url": "https://github.com/JoaquinRuiz/SpecJudge/releases/download/v0.5.4/spec-kit-specjudge.zip",
+      "repository": "https://github.com/JoaquinRuiz/SpecJudge",
+      "homepage": "https://github.com/JoaquinRuiz/SpecJudge",
+      "documentation": "https://github.com/JoaquinRuiz/SpecJudge/blob/main/extensions/spec-kit/README.md",
+      "changelog": "https://github.com/JoaquinRuiz/SpecJudge/blob/main/extensions/spec-kit/CHANGELOG.md",
+      "license": "MIT",
+      "category": "process",
+      "effect": "read-only",
+      "requires": {
+        "speckit_version": ">=0.13.0",
+        "tools": [
+          {
+            "name": "specjudge",
+            "version": ">=0.5.0",
+            "required": true
+          }
+        ]
+      },
+      "provides": {
+        "commands": 1,
+        "hooks": 1
+      },
+      "tags": [
+        "cost",
+        "model-selection",
+        "local-first",
+        "ollama"
+      ],
+      "verified": false,
+      "downloads": 0,
+      "stars": 0,
+      "created_at": "2026-08-12T00:00:00Z",
+      "updated_at": "2026-08-12T00:00:00Z"
     },
     "speckit-superpowers-bridge": {
       "name": "Superpowers Implementation Bridge",

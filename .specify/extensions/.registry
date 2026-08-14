@@ -126,9 +126,9 @@
       "installed_at": "2026-08-12T23:25:05.832665+00:00"
     },
     "screenshots": {
-      "version": "0.1.0",
+      "version": "0.3.0",
       "source": "local",
-      "manifest_hash": "sha256:29d5a1a0be5f4f83e811eb9a3ff0a4233891890c7c7ae727865042e135b142cc",
+      "manifest_hash": "sha256:b42f126dd562a868c935ade732a7d4e07fec673e055d2af16834bb59180401be",
       "enabled": true,
       "priority": 10,
       "registered_commands": {

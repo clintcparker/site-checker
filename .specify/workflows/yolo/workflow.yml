@@ -2,7 +2,7 @@ schema_version: "1.0"
 workflow:
   id: "yolo"
   name: "Full SDD Cycle - no gates"
-  version: "0.2.1"
+  version: "0.8.0"
   author: "clintcparker"
   description: "Runs worktree → specify → plan → tasks → implement without review gates. Requires the `worktrees` extension."
 
@@ -59,10 +59,14 @@ steps:
   # and in an unattended run it is usually NOT the worktree. Moving the session needs the
   # EnterWorktree tool, which requires interactive approval that nobody is here to give,
   # so the normal outcome is worktree_isolation=created with session=primary: the branch
-  # lives in its worktree, the session's working directory is still the primary checkout,
-  # and correctness rides on the SPECIFY_INIT_DIR / SPECIFY_FEATURE_DIRECTORY overrides
-  # this step emits. Every later step must honor them; nothing enforces that, and this
-  # workflow has no ship step to record it, so the run summary is the only place it lands.
+  # lives in its worktree and the session's working directory is still the primary
+  # checkout. The SPECIFY_INIT_DIR / SPECIFY_FEATURE_DIRECTORY overrides this step emits
+  # close only half of that gap. `.specify/scripts/**` reads them; nothing else does, so
+  # every plain git, gh, build and test command a later step runs still resolves against
+  # the primary unless that step directs it at the worktree by hand — which is what the
+  # WORKTREE DISCIPLINE block in every step below exists to make it do (issue #5).
+  # Nothing enforces either half, and this workflow has no ship step to record it, so the
+  # run summary is the only place it lands.
   #
   # It also makes the `worktrees` extension a hard dependency of this workflow, which
   # `requires` cannot express (it recognizes only speckit_version and integrations).
@@ -73,6 +77,22 @@ steps:
     input:
       args: >-
         UNATTENDED RUN — no user is present; never prompt and never ask which layout.
+
+        ACQUIRE LOCK — after determining the branch name (Outline step 1) and before
+        creating anything (step 3), generate a run_id (format: <utc-timestamp>-<branch>,
+        e.g. 20260812T112100Z-005-user-auth) and call acquire-lock.sh --run-id "$RUN_ID"
+        --pid "$PPID" (Outline step 2). Pass $PPID, never $$: every command here runs in a
+        shell that exits as soon as it returns, so $$ names a process that is already dead
+        by the next step and a lock stamped with it looks stale to every later run. $PPID
+        is the agent process, which lives for the whole run.
+
+        Exit code 3 means a live concurrent run holds the lock — either its process is
+        alive or its lock is younger than lock_ttl_minutes: report the conflict naming the
+        existing run_id and pid, and STOP — do not create the worktree, do not pass
+        --force. Skip this step only when step 0 determined worktree_isolation=already.
+        Pass $RUN_ID to write-run-context.sh via --run-id in step 5 so the lock and run
+        context share the same identifier; that file is where the step which releases the
+        lock at the end of this workflow reads it from.
 
         Ensure this session is inside a feature worktree before any later step touches
         the repo. Follow the command's Outline step 0 case detection: no-op if already
@@ -92,7 +112,7 @@ steps:
         the call to be refused and expect session=primary. That is the normal outcome of
         an unattended run, not a failure — but do NOT let the spec land in the primary
         checkout because of it. Emit SPECIFY_INIT_DIR and SPECIFY_FEATURE_DIRECTORY in the
-        fields block exactly as Outline step 3 requires, and export SPECIFY_INIT_DIR for
+        fields block exactly as Outline step 4 requires, and export SPECIFY_INIT_DIR for
         every .specify/scripts/** invocation from here to the end of the run.
 
         REPORT, DO NOT REMEDY. Creating the branch inside its worktree is this step's whole
@@ -102,31 +122,379 @@ steps:
         close the gap, and no copying untracked files across. "Never prompt" is not licence
         to act unilaterally.
 
-        This workflow has no ship step, so there is no pull request to carry the outcome.
-        Record BOTH worktree_isolation and session in the run summary instead, along with
-        anything Outline step 4 reported, and state a recovered, failed, or degraded
-        isolation prominently — it is the only record the user gets.
+        WORKTREE DISCIPLINE — the overrides are not isolation, and the report must say
+        so. SPECIFY_INIT_DIR and SPECIFY_FEATURE_DIRECTORY are honored only by
+        `.specify/scripts/**`; with session=primary every plain `git`, `gh`, build and
+        test command a later step runs still resolves against the primary checkout unless
+        that step directs it at the worktree (`git -C <path>`, or `cd <path>` first).
+        Report the worktree path in the fields block as `worktree_path=<path>` alongside
+        the two overrides, and state the invariant every later step inherits: all writes
+        happen in this run's worktree on this run's branch, and a step about to write in
+        the primary checkout has failed rather than found a workaround.
 
+        PIN THE FEATURE — take Outline step 5 on every path out of this command, including
+        worktree_isolation=failed: write the run context with write-run-context.sh
+        --run-id "$RUN_ID" and report run_context=<path> in the fields block. Every later
+        step of this workflow resolves FEATURE_DIR from that file and has nothing else to
+        go on. If the script exits 3, another unattended run owns the pointer in this
+        primary checkout — report run_context=collision naming both branches, and do NOT
+        pass --force.
+
+        This workflow has no ship step, so there is no pull request to carry the outcome.
+        Record worktree_isolation, session AND run_context in the run summary instead, along
+        with anything Outline step 6 reported, and state a recovered, failed, degraded or
+        collided outcome prominently — it is the only record the user gets.
+
+  # Every step below re-states the same FEATURE IDENTITY block. That is not an oversight:
+  # the workflow engine has no step-output templating, so a step receives nothing but its
+  # own args — not the worktree step's report, not the previous step's output. Each one has
+  # to be told, in its own args, where to find the run context. See issue #1.
   - id: specify
     command: speckit.specify
     integration: "{{ inputs.integration }}"
     input:
-      args: "{{ inputs.spec }}"
+      args: >-
+        {{ inputs.spec }}
+
+        --- RUN CONTROL (not part of the feature description above) ---
+
+        FEATURE IDENTITY — resolve it from the run context, not from the repo. The worktree
+        step pinned this run's feature to `.specify/run-context.json`; look for it under
+        $SPECIFY_INIT_DIR first, then in the current directory, then in the primary
+        checkout. Take `branch`, `feature_dir` and `worktree_path` from it, and export
+        SPECIFY_INIT_DIR=<worktree_path> (when non-empty) and
+        SPECIFY_FEATURE_DIRECTORY=<feature_dir> for every `.specify/scripts/**` invocation
+        this step makes.
+
+        WORKTREE DISCIPLINE — the two SPECIFY_* overrides are read only by
+        `.specify/scripts/**`. Every other command this step runs — `git`, `gh`, the
+        build, the test suite, any file write — resolves against the current working
+        directory, and in an unattended run that is the PRIMARY checkout, not this run's
+        tree. Direct each of them at the tree explicitly: `git -C <tree> …`, or `cd
+        <tree>` first. A bare `git add`, `git commit`, `git push` or test command writes
+        to whatever branch the primary happens to be standing on.
+
+        <tree> is `worktree_path` from the run context when that field is non-empty, and
+        `primary_path` when it is empty — an empty `worktree_path` means the run has no
+        worktree (worktree_isolation=failed) and the primary IS this run's tree. Before
+        the first write, confirm both: `git -C <tree> rev-parse --show-toplevel` names
+        <tree>, and `git -C <tree> branch --show-current` names the run context's
+        `branch`. If either disagrees, FAIL THIS STEP LOUDLY rather than write.
+
+        ALL WRITES HAPPEN IN THIS RUN'S WORKTREE ON THIS RUN'S BRANCH. Finding yourself
+        about to write in the primary checkout — a commit onto the target branch, an edit
+        under `primary_path`, a branch cut from the primary's HEAD — is a FAILED STEP,
+        not a workaround. Stop and report it; do not commit there anyway, and do not move
+        the primary to make it fit.
+
+        PRIOR WORK — before running the spec command, check whether `feature_dir` already
+        exists and contains a spec document. If it does, this is a resumed run: adopt the
+        existing spec without regenerating it, note the adoption in the step output, and
+        continue. Do not mint a second branch and do not ask. If the existing spec is
+        incomplete, extend it in place and record what was added. Only run the full spec
+        command when `feature_dir` does not yet exist or is empty.
+
+        Do not mint a new feature number and do not derive one from `specs/`: the branch in
+        the run context is this run's feature, whatever the tree the session is standing in
+        looks like.
+
+        If a script resolves a feature the run context does not name, it has found the wrong
+        one: FAIL THIS STEP LOUDLY, naming both, and do not adopt it. If no run context file
+        can be found at all, fail the same way rather than guessing.
+
+        ARTIFACT VISIBILITY — the artifacts this step writes under `feature_dir` are
+        evidence the pull request links to, so they have to be TRACKED, not force-added.
+        Before committing, ask git whether they are: `git -C <tree> check-ignore -v --
+        <feature_dir>/` and the same for each subdirectory this step wrote under it. The
+        path need not exist yet — `check-ignore` matches pathnames, not files — and exit
+        status 1 with no output means NOT ignored, which is the good case, not a failure.
+        If nothing is reported, there is nothing to do.
+
+        If a rule IS reported, do NOT reach for `git add -f`. That stages the files once
+        and leaves the next step, the next run and the reviewer's checkout with the same
+        conflict — and a pull request that links a path git still considers ignored is a
+        404 waiting to happen. Un-ignore the path once, in a committed file: append
+        `!<subdir>/` to `<feature_dir>/.gitignore`, creating that file if it does not
+        exist. A `.gitignore` inside the feature directory outranks the root one, so a
+        single line fixes the path for this step and every step after it, and a plain
+        `git -C <tree> add` works from then on. If `feature_dir` ITSELF is reported as
+        ignored its own `.gitignore` is never read — append the negation for it to the
+        repo-root `.gitignore` first. Do nothing when the negation is already present,
+        and never `git add -f` in this workflow.
+
+        ARTIFACT COMMIT — after completing this step's work, commit any new or modified files
+        to the feature branch. Run `git -C <tree> add .` and
+        `git -C <tree> commit` with a descriptive Conventional Commit message
+        (e.g. `docs(specify): add specification for <feature-name>`). Skip silently if there
+        is nothing to commit. Do not prompt — treat the optional git auto-commit hook as
+        answered YES.
+
+        UNATTENDED RUN — no user is present; never pause for input and never ask a question.
+        Make every judgment call yourself, record it and its reasoning in the artifact, and
+        flag it as an open decision in the run summary.
 
   - id: plan
     command: speckit.plan
     integration: "{{ inputs.integration }}"
     input:
-      args: "{{ inputs.spec }}"
+      args: >-
+        {{ inputs.spec }}
+
+        --- RUN CONTROL (not part of the feature description above) ---
+
+        FEATURE IDENTITY — resolve it from the run context, not from the repo. The worktree
+        step pinned this run's feature to `.specify/run-context.json`; look for it under
+        $SPECIFY_INIT_DIR first, then in the current directory, then in the primary
+        checkout. Take `branch`, `feature_dir` and `worktree_path` from it, and export
+        SPECIFY_INIT_DIR=<worktree_path> (when non-empty) and
+        SPECIFY_FEATURE_DIRECTORY=<feature_dir> for every `.specify/scripts/**` invocation
+        this step makes.
+
+        Never infer the feature from the current branch, from `.specify/feature.json`, or
+        from the newest directory under `specs/`. Right after a merge all three name the
+        PREVIOUS feature, and this run's session is usually standing in the primary
+        checkout, where that is exactly what they name. A helper script exiting 0 is not
+        evidence it found the right feature: `setup-plan.sh` exits 0 on the wrong one and
+        plants a template `plan.md` there.
+
+        If a script resolves a feature the run context does not name, it has found the wrong
+        one: FAIL THIS STEP LOUDLY, naming both the resolved feature and the pinned one, and
+        do not adopt it. If no run context file can be found at all, fail the same way
+        rather than guessing.
+
+        WORKTREE DISCIPLINE — the two SPECIFY_* overrides are read only by
+        `.specify/scripts/**`. Every other command this step runs — `git`, `gh`, the
+        build, the test suite, any file write — resolves against the current working
+        directory, and in an unattended run that is the PRIMARY checkout, not this run's
+        tree. Direct each of them at the tree explicitly: `git -C <tree> …`, or `cd
+        <tree>` first. A bare `git add`, `git commit`, `git push` or test command writes
+        to whatever branch the primary happens to be standing on.
+
+        <tree> is `worktree_path` from the run context when that field is non-empty, and
+        `primary_path` when it is empty — an empty `worktree_path` means the run has no
+        worktree (worktree_isolation=failed) and the primary IS this run's tree. Before
+        the first write, confirm both: `git -C <tree> rev-parse --show-toplevel` names
+        <tree>, and `git -C <tree> branch --show-current` names the run context's
+        `branch`. If either disagrees, FAIL THIS STEP LOUDLY rather than write.
+
+        ALL WRITES HAPPEN IN THIS RUN'S WORKTREE ON THIS RUN'S BRANCH. Finding yourself
+        about to write in the primary checkout — a commit onto the target branch, an edit
+        under `primary_path`, a branch cut from the primary's HEAD — is a FAILED STEP,
+        not a workaround. Stop and report it; do not commit there anyway, and do not move
+        the primary to make it fit.
+
+        PRIOR WORK — if `feature_dir` already contains a completed `plan.md` from a prior
+        run, adopt it without regenerating. Note the adoption in the step output and
+        continue. Only run the full plan command when `plan.md` does not exist or is empty.
+
+        ARTIFACT VISIBILITY — the artifacts this step writes under `feature_dir` are
+        evidence the pull request links to, so they have to be TRACKED, not force-added.
+        Before committing, ask git whether they are: `git -C <tree> check-ignore -v --
+        <feature_dir>/` and the same for each subdirectory this step wrote under it. The
+        path need not exist yet — `check-ignore` matches pathnames, not files — and exit
+        status 1 with no output means NOT ignored, which is the good case, not a failure.
+        If nothing is reported, there is nothing to do.
+
+        If a rule IS reported, do NOT reach for `git add -f`. That stages the files once
+        and leaves the next step, the next run and the reviewer's checkout with the same
+        conflict — and a pull request that links a path git still considers ignored is a
+        404 waiting to happen. Un-ignore the path once, in a committed file: append
+        `!<subdir>/` to `<feature_dir>/.gitignore`, creating that file if it does not
+        exist. A `.gitignore` inside the feature directory outranks the root one, so a
+        single line fixes the path for this step and every step after it, and a plain
+        `git -C <tree> add` works from then on. If `feature_dir` ITSELF is reported as
+        ignored its own `.gitignore` is never read — append the negation for it to the
+        repo-root `.gitignore` first. Do nothing when the negation is already present,
+        and never `git add -f` in this workflow.
+
+        ARTIFACT COMMIT — after completing this step's work, commit any new or modified files
+        to the feature branch. Run `git -C <tree> add .` and
+        `git -C <tree> commit` with a descriptive Conventional Commit message
+        (e.g. `docs(plan): add implementation plan for <feature-name>`). Skip silently if
+        there is nothing to commit. Do not prompt — treat the optional git auto-commit hook
+        as answered YES.
+
+        UNATTENDED RUN — no user is present; never pause for input and never ask a question.
+        Make every judgment call yourself, record it and its reasoning in the artifact, and
+        flag it as an open decision in the run summary.
 
   - id: tasks
     command: speckit.tasks
     integration: "{{ inputs.integration }}"
     input:
-      args: "{{ inputs.spec }}"
+      args: >-
+        {{ inputs.spec }}
+
+        --- RUN CONTROL (not part of the feature description above) ---
+
+        FEATURE IDENTITY — resolve it from the run context, not from the repo. The worktree
+        step pinned this run's feature to `.specify/run-context.json`; look for it under
+        $SPECIFY_INIT_DIR first, then in the current directory, then in the primary
+        checkout. Take `branch`, `feature_dir` and `worktree_path` from it, and export
+        SPECIFY_INIT_DIR=<worktree_path> (when non-empty) and
+        SPECIFY_FEATURE_DIRECTORY=<feature_dir> for every `.specify/scripts/**` invocation
+        this step makes.
+
+        Never infer the feature from the current branch, from `.specify/feature.json`, or
+        from the newest directory under `specs/`. Right after a merge all three name the
+        PREVIOUS feature, and this run's session is usually standing in the primary
+        checkout, where that is exactly what they name. A helper script exiting 0 is not
+        evidence it found the right feature.
+
+        If a script resolves a feature the run context does not name, it has found the wrong
+        one: FAIL THIS STEP LOUDLY, naming both the resolved feature and the pinned one, and
+        do not adopt it. If no run context file can be found at all, fail the same way
+        rather than guessing.
+
+        WORKTREE DISCIPLINE — the two SPECIFY_* overrides are read only by
+        `.specify/scripts/**`. Every other command this step runs — `git`, `gh`, the
+        build, the test suite, any file write — resolves against the current working
+        directory, and in an unattended run that is the PRIMARY checkout, not this run's
+        tree. Direct each of them at the tree explicitly: `git -C <tree> …`, or `cd
+        <tree>` first. A bare `git add`, `git commit`, `git push` or test command writes
+        to whatever branch the primary happens to be standing on.
+
+        <tree> is `worktree_path` from the run context when that field is non-empty, and
+        `primary_path` when it is empty — an empty `worktree_path` means the run has no
+        worktree (worktree_isolation=failed) and the primary IS this run's tree. Before
+        the first write, confirm both: `git -C <tree> rev-parse --show-toplevel` names
+        <tree>, and `git -C <tree> branch --show-current` names the run context's
+        `branch`. If either disagrees, FAIL THIS STEP LOUDLY rather than write.
+
+        ALL WRITES HAPPEN IN THIS RUN'S WORKTREE ON THIS RUN'S BRANCH. Finding yourself
+        about to write in the primary checkout — a commit onto the target branch, an edit
+        under `primary_path`, a branch cut from the primary's HEAD — is a FAILED STEP,
+        not a workaround. Stop and report it; do not commit there anyway, and do not move
+        the primary to make it fit.
+
+        PRIOR WORK — if `feature_dir` already contains a completed `tasks.md` from a prior
+        run, adopt it without regenerating. Note the adoption in the step output and
+        continue. Only run the full tasks command when `tasks.md` does not exist or is empty.
+
+        ARTIFACT VISIBILITY — the artifacts this step writes under `feature_dir` are
+        evidence the pull request links to, so they have to be TRACKED, not force-added.
+        Before committing, ask git whether they are: `git -C <tree> check-ignore -v --
+        <feature_dir>/` and the same for each subdirectory this step wrote under it. The
+        path need not exist yet — `check-ignore` matches pathnames, not files — and exit
+        status 1 with no output means NOT ignored, which is the good case, not a failure.
+        If nothing is reported, there is nothing to do.
+
+        If a rule IS reported, do NOT reach for `git add -f`. That stages the files once
+        and leaves the next step, the next run and the reviewer's checkout with the same
+        conflict — and a pull request that links a path git still considers ignored is a
+        404 waiting to happen. Un-ignore the path once, in a committed file: append
+        `!<subdir>/` to `<feature_dir>/.gitignore`, creating that file if it does not
+        exist. A `.gitignore` inside the feature directory outranks the root one, so a
+        single line fixes the path for this step and every step after it, and a plain
+        `git -C <tree> add` works from then on. If `feature_dir` ITSELF is reported as
+        ignored its own `.gitignore` is never read — append the negation for it to the
+        repo-root `.gitignore` first. Do nothing when the negation is already present,
+        and never `git add -f` in this workflow.
+
+        ARTIFACT COMMIT — after completing this step's work, commit any new or modified files
+        to the feature branch. Run `git -C <tree> add .` and
+        `git -C <tree> commit` with a descriptive Conventional Commit message
+        (e.g. `docs(tasks): add task list for <feature-name>`). Skip silently if there is
+        nothing to commit. Do not prompt — treat the optional git auto-commit hook as
+        answered YES.
+
+        UNATTENDED RUN — no user is present; never pause for input and never ask a question.
+        Make every judgment call yourself, record it and its reasoning in the artifact, and
+        flag it as an open decision in the run summary.
 
   - id: implement
     command: speckit.implement
     integration: "{{ inputs.integration }}"
     input:
-      args: "{{ inputs.spec }}"
+      args: >-
+        {{ inputs.spec }}
+
+        --- RUN CONTROL (not part of the feature description above) ---
+
+        FEATURE IDENTITY — resolve it from the run context, not from the repo. The worktree
+        step pinned this run's feature to `.specify/run-context.json`; look for it under
+        $SPECIFY_INIT_DIR first, then in the current directory, then in the primary
+        checkout. Take `branch`, `feature_dir` and `worktree_path` from it, and export
+        SPECIFY_INIT_DIR=<worktree_path> (when non-empty) and
+        SPECIFY_FEATURE_DIRECTORY=<feature_dir> for every `.specify/scripts/**` invocation
+        this step makes.
+
+        Every file this step writes belongs in the tree named by `worktree_path`. Never
+        infer the feature from the current branch, from `.specify/feature.json`, or from the
+        newest directory under `specs/`; right after a merge all three name the PREVIOUS
+        feature, and implementing against those is how a run edits the wrong tree.
+
+        If a script resolves a feature the run context does not name, it has found the wrong
+        one: FAIL THIS STEP LOUDLY, naming both the resolved feature and the pinned one, and
+        do not adopt it. If no run context file can be found at all, fail the same way
+        rather than guessing.
+
+        WORKTREE DISCIPLINE — the two SPECIFY_* overrides are read only by
+        `.specify/scripts/**`. Every other command this step runs — `git`, `gh`, the
+        build, the test suite, any file write — resolves against the current working
+        directory, and in an unattended run that is the PRIMARY checkout, not this run's
+        tree. Direct each of them at the tree explicitly: `git -C <tree> …`, or `cd
+        <tree>` first. A bare `git add`, `git commit`, `git push` or test command writes
+        to whatever branch the primary happens to be standing on.
+
+        <tree> is `worktree_path` from the run context when that field is non-empty, and
+        `primary_path` when it is empty — an empty `worktree_path` means the run has no
+        worktree (worktree_isolation=failed) and the primary IS this run's tree. Before
+        the first write, confirm both: `git -C <tree> rev-parse --show-toplevel` names
+        <tree>, and `git -C <tree> branch --show-current` names the run context's
+        `branch`. If either disagrees, FAIL THIS STEP LOUDLY rather than write.
+
+        ALL WRITES HAPPEN IN THIS RUN'S WORKTREE ON THIS RUN'S BRANCH. Finding yourself
+        about to write in the primary checkout — a commit onto the target branch, an edit
+        under `primary_path`, a branch cut from the primary's HEAD — is a FAILED STEP,
+        not a workaround. Stop and report it; do not commit there anyway, and do not move
+        the primary to make it fit.
+
+        PRIOR WORK — if `worktree_path` already contains uncommitted or committed changes
+        from a prior run, adopt them: rebase onto the current base ref if needed, extend or
+        complete the implementation rather than rewriting it, and extend the tests rather
+        than replacing them. Record what was inherited and what was added. Do not ask.
+
+        ARTIFACT VISIBILITY — the artifacts this step writes under `feature_dir` are
+        evidence the pull request links to, so they have to be TRACKED, not force-added.
+        Before committing, ask git whether they are: `git -C <tree> check-ignore -v --
+        <feature_dir>/` and the same for each subdirectory this step wrote under it. The
+        path need not exist yet — `check-ignore` matches pathnames, not files — and exit
+        status 1 with no output means NOT ignored, which is the good case, not a failure.
+        If nothing is reported, there is nothing to do.
+
+        If a rule IS reported, do NOT reach for `git add -f`. That stages the files once
+        and leaves the next step, the next run and the reviewer's checkout with the same
+        conflict — and a pull request that links a path git still considers ignored is a
+        404 waiting to happen. Un-ignore the path once, in a committed file: append
+        `!<subdir>/` to `<feature_dir>/.gitignore`, creating that file if it does not
+        exist. A `.gitignore` inside the feature directory outranks the root one, so a
+        single line fixes the path for this step and every step after it, and a plain
+        `git -C <tree> add` works from then on. If `feature_dir` ITSELF is reported as
+        ignored its own `.gitignore` is never read — append the negation for it to the
+        repo-root `.gitignore` first. Do nothing when the negation is already present,
+        and never `git add -f` in this workflow.
+
+        ARTIFACT COMMIT — after the implementation is complete, commit all changes to the
+        feature branch. Run `git -C <tree> add .` and
+        `git -C <tree> commit` with a descriptive Conventional Commit message
+        appropriate to what was implemented (e.g. `feat: implement <feature-name>`; use
+        finer-grained commits per logical unit when the changes span multiple concerns).
+        Skip silently if there is nothing to commit. Do not prompt — treat the optional git
+        auto-commit hook as answered YES.
+
+        UNATTENDED RUN — no user is present; never pause for input and never ask a question.
+        Make every judgment call yourself, record it and its reasoning in the artifact, and
+        flag it as an open decision in the run summary.
+
+        RELEASE THE LOCK — this is the last step of the workflow, so it is the one that
+        frees the run lock the worktree step took. As the FINAL action of this step, after
+        everything above is done and even if some of it failed, run
+        `bash <primary_path>/.specify/extensions/worktrees/scripts/bash/release-lock.sh
+        --run-id "<run_id from run-context.json>"`, taking `primary_path` from the run
+        context. The lock lives in the primary checkout and the script resolves it from
+        either tree, but the primary is where the script itself is certain to be — a
+        relative path resolves against wherever this step last stood. It removes the lock
+        only while it still belongs to that run id, so it can never free somebody else's. Skipping it corrupts nothing — the
+        lock expires on its own after lock_ttl_minutes — but it blocks the next run against
+        this checkout for up to that long. Report the RELEASE_STATUS in the run summary.
