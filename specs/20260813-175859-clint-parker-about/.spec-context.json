@@ -1,0 +1,16 @@
+{
+  "workflow": "speckit",
+  "specName": "Author Attribution in About",
+  "branch": "20260813-175859-clint-parker-about",
+  "currentStep": "specify",
+  "status": "specified",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-08-14T01:03:23.647Z"
+    }
+  ]
+}

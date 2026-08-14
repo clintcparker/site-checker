@@ -1,7 +1,14 @@
 {
-  "branch": "20260813-105424-urls-clickable-and",
-  "feature_dir": "specs/20260813-105424-urls-clickable-and",
-  "worktree_path": "/Users/clint/src/clintcparker/site-checker--20260813-105424-urls-clickable-and",
-  "reconstructed": true,
-  "reconstructed_reason": "The worktrees extension ships only create-worktree.sh and has no run-context writer, so no run-context.json was ever produced. Rebuilt at the specify step from the unambiguous worktree for this run."
+  "run_id": "20260814T005916Z-20260813-175859-clint-parker-about",
+  "branch": "20260813-175859-clint-parker-about",
+  "feature_dir": "specs/20260813-175859-clint-parker-about",
+  "worktree_path": "/Users/clint/src/clintcparker/site-checker--20260813-175859-clint-parker-about",
+  "base_ref": "origin/main",
+  "base_sha": "5e483834890d91d1a5ffdf350af9efe6d4b287b4",
+  "session": "primary",
+  "worktree_isolation": "created",
+  "description": "add Clint Parker to the about window and add a link to clintparker.com",
+  "hand_rolled": true,
+  "hand_rolled_reason": "The worktrees extension in this repo ships only create-worktree.sh - there is no write-run-context.sh and no acquire-lock.sh, and create-worktree.sh has no --from-description or --run-id flag. Branch name computed with .specify/extensions/git/scripts/bash/create-new-feature-branch.sh --dry-run; this file and .specify/run.lock were written by hand.",
+  "lock_path": "/Users/clint/src/clintcparker/site-checker/.specify/run.lock"
 }
