@@ -1,0 +1,48 @@
+{
+  "targets": [
+    {
+      "slug": "main-window",
+      "why": "The plan puts the About surface behind a new control in this window (an in-app <dialog> opened from the main view), so this is the surface the feature changes. The baseline is what makes the addition legible: today there is no About control anywhere in the app, and no attribution."
+    }
+  ],
+  "viewports": {
+    "default": "720x480",
+    "narrow": "480x320"
+  },
+  "baseline": "available",
+  "notes": [
+    "mode: before, captured pre-implementation. The branch holds only spec/plan/tasks commits (cce5ec2), no implementation, so this is a true baseline rather than a reconstruction.",
+    "FEATURE IDENTITY — the primary checkout's .specify/run-context.json names 20260813-105424-urls-clickable-and, which is the PREVIOUS, already-merged feature (it is in `git branch --merged main`). It was not used. This run is 20260813-175859-clint-parker-about, agreed on by three independent sources: the primary's .specify/run.lock (run_id 20260814T005916Z-20260813-175859-clint-parker-about), this worktree's own .specify/run-context.json (same run_id), and check-prerequisites.sh --paths-only --json run with SPECIFY_INIT_DIR/SPECIFY_FEATURE_DIRECTORY set, which resolved this same FEATURE_DIR.",
+    "CAPTURE METHOD DEVIATION — the profile's capture_method (AppleScript window resize + `screencapture -R` against process `tauri-app`) was impossible this run: the Mac's screen is LOCKED (CGSSessionScreenIsLocked true), so `screencapture -R` fails with 'could not create image from rect' and a full-screen capture would only yield the lock screen. Accessibility/System Events was available, but with no capturable window it is of no use.",
+    "FALLBACK USED — the shipped frontend was driven through Vite (`pnpm dev`, port 1420) in Chromium via Playwright, with window.__TAURI_INTERNALS__ stubbed in an init script (transformCallback/unregisterCallback/invoke, plus plugin:event|listen). The real src/main.ts, src/render.ts, src/form.ts, src/open.ts, index.html and src/styles.css render these images — only the Rust IPC layer is replaced. What is NOT represented: the native window chrome/title bar, WKWebView-vs-Chromium font rasterisation, and real check timing.",
+    "The `after` pass must use this same method for a comparable pair unless the screen is unlocked by then; if it captures the real Tauri window instead, say so rather than presenting the pair as like-for-like.",
+    "Clock frozen to 1786665600000 (2026-08-14T00:00:00Z) via a Date.now override, and each status stamped 12s earlier, so the 'Last checked' column reads '12s ago' in both modes instead of drifting with the 1s repaint timer.",
+    "Statuses were delivered as synthetic `site-status` events (one Up, one Down with reason 'DNS lookup failed') rather than by waiting on real network checks — no request leaves the machine, and the Pending state resolves deterministically. The feature does not touch the Pending state, so capturing the resolved states is the more useful baseline.",
+    "The user's real ~/Library/Application Support/com.clintparker.site-checker/sites.json was NEVER touched — the browser route seeds sites in memory over the stubbed IPC, so the profile's backup/restore dance was unnecessary. Verified unchanged after the run (mtime 2026-08-10 15:22, md5 27364d6a5bad0746748bf046ffc15ba8). autostart.initialized was likewise left alone.",
+    "specs/*/screenshots/ is ignored by the repo-root .gitignore:44. Resolved once, in a committed file, by adding `!screenshots/` to this feature directory's own .gitignore — `git check-ignore` now reports the directory and the PNGs as not ignored, so a plain `git add` tracks them and the PR's links will resolve. No `git add -f` was used.",
+    "Judgement calls made unattended: one target (main-window) rather than several, because the feature adds a single surface reachable from it; the empty state and the add/edit form are untouched by this feature and were not captured."
+  ],
+  "app": {
+    "method": "vite-dev-server + playwright + stubbed __TAURI_INTERNALS__",
+    "url": "http://localhost:1420/",
+    "dev_server_log": "/tmp/site-checker-shots-vite-20260814.log",
+    "frozen_now_ms": 1786665600000,
+    "backup": false,
+    "seed_sites": [
+      { "id": "shots-up", "url": "https://example.com", "label": "Example", "interval_secs": 60, "method_override": null },
+      { "id": "shots-down", "url": "https://down.invalid", "label": "Never Up", "interval_secs": 60, "method_override": null }
+    ],
+    "seed_statuses": [
+      { "id": "shots-up", "state": "up", "checked_at": 1786665588000, "reason": null },
+      { "id": "shots-down", "state": "down", "checked_at": 1786665588000, "reason": "DNS lookup failed" }
+    ],
+    "stubbed_commands": {
+      "list_sites": "seed_sites",
+      "get_warning": null,
+      "get_autostart": false,
+      "set_autostart": "echoes the requested value",
+      "open_url": "no-op"
+    },
+    "after_mode_hint": "Re-run the same harness against the implemented branch, capture main-window at both viewports, then add an `about-dialog` target showing the attribution and the clintparker.com link. The About dialog is an in-app <dialog>, so it is reachable in this browser harness by activating its trigger control — no native menu is involved."
+  }
+}
