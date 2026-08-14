@@ -1,0 +1,13 @@
+
+> site-checker@0.0.0 test /Users/clint/src/clintcparker/site-checker--20260813-175859-clint-parker-about
+> vitest run
+
+
+ RUN  v4.1.10 /Users/clint/src/clintcparker/site-checker--20260813-175859-clint-parker-about
+
+
+ Test Files  8 passed (8)
+      Tests  98 passed (98)
+   Start at  18:46:10
+   Duration  535ms (transform 469ms, setup 0ms, import 579ms, tests 173ms, environment 2.39s)
+

@@ -1,0 +1,25 @@
+test store::tests::replacing_an_unknown_id_writes_nothing_at_all ... ok
+test store::tests::delete_removes_only_the_named_site ... ok
+test store::tests::updating_a_missing_id_changes_nothing_and_still_reports_ok ... ok
+test store::tests::writes_create_the_parent_directory ... ok
+test store::tests::two_overlapping_edits_decide_from_the_current_entry ... ok
+test store::tests::repeated_staging_never_accumulates_more_than_one_artifact ... ok
+test store::tests::update_replaces_the_matching_site_in_place ... ok
+test store::tests::the_old_two_lock_shape_would_lose_the_earlier_edit ... ok
+test store::tests::replace_preserves_list_order ... ok
+test check::tests::an_unresolvable_host_is_down ... ok
+
+test result: ok. 101 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running unittests src/main.rs (src-tauri/target/debug/deps/site_checker-4dd8856fa64e9773)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests site_checker_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
