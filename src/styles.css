@@ -134,6 +134,10 @@ td {
 footer {
   margin-top: auto;
   padding-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .site-form {
@@ -180,5 +184,106 @@ footer {
   gap: 6px;
   font-size: 12px;
   opacity: 0.7;
+  cursor: pointer;
+}
+
+/* Sits beside "Launch at login" and is styled to match it, so the footer reads
+   as one row of small controls rather than a label with a form button bolted
+   on. `margin-left: auto` pushes it to the trailing edge; when the footer wraps
+   at the 480px minimum width it simply starts the next line. */
+.setting-action {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.setting-action:hover {
+  opacity: 1;
+}
+
+/* The About dialog.
+
+   Sized in `min()` against the viewport rather than in fixed pixels: at the
+   window's 480x320 minimum (tauri.conf.json) a fixed width would overflow and
+   a fixed height would push the close button off the bottom, where it cannot
+   be activated. `max-height` plus `overflow-y` keeps the content scrollable
+   instead of clipped in the worst case. */
+.about {
+  width: min(320px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 20px;
+  border: 1px solid rgb(128 128 128 / 0.4);
+  border-radius: 10px;
+  color: inherit;
+  background: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .about {
+    background: #2c2c2e;
+  }
+}
+
+.about::backdrop {
+  background: rgb(0 0 0 / 0.35);
+}
+
+.about-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.about-version {
+  margin: 4px 0 0;
+  font-size: 12px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.about-author {
+  margin: 16px 0 0;
+}
+
+/* Same treatment as the table's URL control, and for the same reason: it is a
+   <button> standing in for a link, so the native button chrome comes off until
+   it reads as one. */
+.about-link {
+  margin-top: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  display: block;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.about-link:focus-visible,
+.about-close:focus-visible,
+.setting-action:focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.about-close {
+  margin-top: 20px;
+  font: inherit;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid rgb(128 128 128 / 0.4);
+  background: transparent;
+  color: inherit;
   cursor: pointer;
 }

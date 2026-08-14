@@ -38,7 +38,45 @@
         <input type="checkbox" id="autostart" />
         Launch at login
       </label>
+      <button type="button" id="about-open" class="setting-action">About</button>
     </footer>
+
+    <!-- A real <dialog>: showModal() supplies Esc-dismissal, focus containment
+         and top-layer stacking, none of which this project reimplements.
+
+         `data-about-close` is deliberately its own attribute rather than
+         `data-action` or `data-open-url` — the same structural separation the
+         table's controls already use, so the dismissal button cannot be seen by
+         form.ts's or open.ts's delegated listeners. -->
+    <dialog id="about" class="about">
+      <!-- "Site Checker" is a literal, not a runtime value: it is the bundle
+           name and the window title, not something the app reads back. -->
+      <p class="about-name">Site Checker</p>
+
+      <!-- Filled by about.ts on first open. The placeholder is what a user sees
+           for the few milliseconds before getVersion() resolves, and is also
+           what remains if the fetch never resolves at all. -->
+      <p class="about-version" id="about-version">Version unavailable</p>
+
+      <p class="about-author">Created by Clint Parker</p>
+
+      <!-- A <button>, not an <a href>: an anchor can navigate the dashboard
+           away from itself if the handler does not run, and there is no way
+           back. Same trade the table's URL cells already make.
+
+           `data-open-url` is the table's own contract, reused verbatim — the
+           full address travels in the attribute, the visible text drops the
+           scheme so the destination reads as clintparker.com. -->
+      <button
+        type="button"
+        data-open-url="https://clintparker.com"
+        class="about-link"
+      >
+        clintparker.com
+      </button>
+
+      <button type="button" data-about-close class="about-close">Close</button>
+    </dialog>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -11,6 +11,7 @@ import {
 import { renderTable, type Row } from "./render";
 import { mountForm } from "./form";
 import { mountUrlOpener } from "./open";
+import { mountAbout } from "./about";
 
 const sites = new Map<string, Site>();
 const statuses = new Map<string, StatusEvent>();
@@ -122,6 +123,11 @@ async function main(): Promise<void> {
   // banner rather than the form's error line — nothing about it is about what
   // the user typed.
   mountUrlOpener(tbody, { onError: showBanner });
+
+  // Same reasoning as above: a refused open is not about anything the user
+  // typed, so it goes to the banner. `about.ts` closes the dialog first — a
+  // modal would otherwise cover the message.
+  mountAbout({ onError: showBanner });
 
   await mountAutostart();
 
