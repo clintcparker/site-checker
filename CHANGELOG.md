@@ -2,6 +2,42 @@
 
 All notable changes to Site Checker are recorded here.
 
+## The app now says who made it — 2026-08-14
+
+Site Checker named itself but named nobody. There is now an About dialog, reachable in one
+click from the footer, that carries the app's name, its version, and its author.
+
+- **A new About dialog shows "Created by Clint Parker".** It opens from an `About` button
+  in the footer, opposite "Launch at login" — an ordinary visible control, not a menu item,
+  so the author is one click from launch at both 720×480 and the window's 480×320 minimum.
+  The name is static markup in `index.html`, so there is no state or timing in which the
+  dialog renders without it. The address in `Cargo.toml` is deliberately not surfaced, and
+  a test asserts no `@` appears anywhere in the dialog.
+- **The version is read from the running build.** It is fetched lazily on first open rather
+  than at startup, so a dialog nobody opens costs nothing, and it is rendered verbatim —
+  `0.0.0` on a local build, `1.4.0-beta.2+build.77` uninterpreted from a real stamp. A read
+  that fails degrades to `Version unavailable` with the attribution and link still shown,
+  rather than blocking the surface. The dialog opens *first* and fills the version in after,
+  so a slow or hung read cannot hold it closed.
+- **`clintparker.com` is a link that leaves the app.** It is a `<button>` carrying the
+  address in a data attribute, not an `<a href>` — so there is no URL for the webview to
+  follow and Cmd-click, middle-click and a JS failure all leave the app where it was. The
+  address is handed to the existing first-party `open_url`, whose scheme guard already
+  restricts what can be spawned; no capability was widened and no dependency was added.
+- **Repeat activations collapse to one navigation.** The 1000 ms suppression window shipped
+  for the row URLs is *reused unchanged* rather than reimplemented, so the two surfaces
+  cannot drift apart — ten clicks in 0.3 ms produce exactly one navigation, and a click
+  after the window lapses opens again.
+- **A refused open closes the dialog before it explains itself.** Writing the message first
+  would put it behind the modal that covers it; the dialog is dismissed and *then* the
+  existing notice area is written, measured at 37 ms against a one-second bound. The app
+  stays usable and the site list is untouched throughout.
+- **Nothing in the backend changed.** `git diff origin/main -- src-tauri/` is empty: no new
+  command, no new capability, no new file the app owns, no network request of the app's own.
+  The site list is byte-identical across an open-and-close session.
+
+Spec, plan and evidence: [`specs/20260813-175859-clint-parker-about/`](specs/20260813-175859-clint-parker-about/).
+
 ## A site's URL is now a control that opens it — 2026-08-13
 
 Getting from a row to the page it watches took five actions: select the URL, copy it,

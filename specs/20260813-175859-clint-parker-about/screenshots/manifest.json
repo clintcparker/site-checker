@@ -1,0 +1,67 @@
+{
+  "targets": [
+    {
+      "slug": "main-window",
+      "why": "The plan puts the About surface behind a new control in this window (an in-app <dialog> opened from the main view), so this is the surface the feature changes. The baseline is what makes the addition legible: today there is no About control anywhere in the app, and no attribution."
+    },
+    {
+      "slug": "about-dialog",
+      "why": "The surface the feature exists for: the modal itself, showing the 'Created by Clint Parker' attribution and the clintparker.com link. Added in the `after` pass because it does not exist in the baseline — there is deliberately no `before/about-dialog-*.png`."
+    }
+  ],
+  "viewports": {
+    "default": "720x480",
+    "narrow": "480x320"
+  },
+  "baseline": "available",
+  "notes": [
+    "mode: before, captured pre-implementation. The branch holds only spec/plan/tasks commits (cce5ec2), no implementation, so this is a true baseline rather than a reconstruction.",
+    "FEATURE IDENTITY — the primary checkout's .specify/run-context.json names 20260813-105424-urls-clickable-and, which is the PREVIOUS, already-merged feature (it is in `git branch --merged main`). It was not used. This run is 20260813-175859-clint-parker-about, agreed on by three independent sources: the primary's .specify/run.lock (run_id 20260814T005916Z-20260813-175859-clint-parker-about), this worktree's own .specify/run-context.json (same run_id), and check-prerequisites.sh --paths-only --json run with SPECIFY_INIT_DIR/SPECIFY_FEATURE_DIRECTORY set, which resolved this same FEATURE_DIR.",
+    "CAPTURE METHOD DEVIATION — the profile's capture_method (AppleScript window resize + `screencapture -R` against process `tauri-app`) was impossible this run: the Mac's screen is LOCKED (CGSSessionScreenIsLocked true), so `screencapture -R` fails with 'could not create image from rect' and a full-screen capture would only yield the lock screen. Accessibility/System Events was available, but with no capturable window it is of no use.",
+    "FALLBACK USED — the shipped frontend was driven through Vite (`pnpm dev`, port 1420) in Chromium via Playwright, with window.__TAURI_INTERNALS__ stubbed in an init script (transformCallback/unregisterCallback/invoke, plus plugin:event|listen). The real src/main.ts, src/render.ts, src/form.ts, src/open.ts, index.html and src/styles.css render these images — only the Rust IPC layer is replaced. What is NOT represented: the native window chrome/title bar, WKWebView-vs-Chromium font rasterisation, and real check timing.",
+    "The `after` pass must use this same method for a comparable pair unless the screen is unlocked by then; if it captures the real Tauri window instead, say so rather than presenting the pair as like-for-like.",
+    "Clock frozen to 1786665600000 (2026-08-14T00:00:00Z) via a Date.now override, and each status stamped 12s earlier, so the 'Last checked' column reads '12s ago' in both modes instead of drifting with the 1s repaint timer.",
+    "Statuses were delivered as synthetic `site-status` events (one Up, one Down with reason 'DNS lookup failed') rather than by waiting on real network checks — no request leaves the machine, and the Pending state resolves deterministically. The feature does not touch the Pending state, so capturing the resolved states is the more useful baseline.",
+    "The user's real ~/Library/Application Support/com.clintparker.site-checker/sites.json was NEVER touched — the browser route seeds sites in memory over the stubbed IPC, so the profile's backup/restore dance was unnecessary. Verified unchanged after the run (mtime 2026-08-10 15:22, md5 27364d6a5bad0746748bf046ffc15ba8). autostart.initialized was likewise left alone.",
+    "specs/*/screenshots/ is ignored by the repo-root .gitignore:44. Resolved once, in a committed file, by adding `!screenshots/` to this feature directory's own .gitignore — `git check-ignore` now reports the directory and the PNGs as not ignored, so a plain `git add` tracks them and the PR's links will resolve. No `git add -f` was used.",
+    "Judgement calls made unattended: one target (main-window) rather than several, because the feature adds a single surface reachable from it; the empty state and the add/edit form are untouched by this feature and were not captured.",
+    "--- mode: after (captured against 89d0cf9, implementation commit 4333962 'feat(about)') ---",
+    "AFTER — feature identity re-resolved from scratch and reached the same answer. The primary checkout's .specify/run-context.json STILL names the previous, already-merged 20260813-105424-urls-clickable-and, so the documented lookup order answers WRONG here rather than empty. It was not used. This worktree's own .specify/run-context.json carries run_id 20260814T005916Z-20260813-175859-clint-parker-about, identical to the primary's .specify/run.lock, and check-prerequisites.sh --paths-only --json (run from this worktree with SPECIFY_INIT_DIR/SPECIFY_FEATURE_DIRECTORY exported) resolved FEATURE_DIR to this same directory. Three sources agree; the before and after images are the same feature.",
+    "AFTER — the screen was STILL locked (ioreg IOConsoleLocked true), so the profile's native `screencapture` path remained impossible and the before pass's Vite+Playwright harness was reproduced deliberately, exactly as the note above required. The pair is like-for-like: same URL, same stub surface, same frozen clock (1786665600000), same two seed sites, same two synthetic `site-status` events stamped 12s earlier. The same caveats therefore apply to BOTH sets — no native window chrome, Chromium rather than WKWebView rasterisation, no real network timing. Neither set shows the real Tauri window.",
+    "AFTER — the harness gained exactly one stub the baseline did not need: `plugin:app|version`, returning \"0.0.0\". The implementation's About dialog reads its version through `getVersion()` from @tauri-apps/api/app, which routes to that command rather than to a project `invoke`. \"0.0.0\" is the app's genuine local-build sentinel (package.json version, replaced from the pushed tag by release.yml), so the version line in these images reads as it does on any local build — it is not an invented value.",
+    "AFTER — both viewports were captured at deviceScaleFactor 1, matching the baseline's actual pixel dimensions (720x480 and 480x320). A first attempt at 2x was discarded and re-shot rather than committed: a 1440x960 'after' beside a 720x480 'before' is not a comparable pair.",
+    "AFTER — the `about-dialog` target has NO baseline counterpart, by construction: the dialog did not exist before this feature. `before/` holds main-window only; `after/` holds both targets. The main-window pair is the comparable one, and it differs in exactly one visible way — the new 'About' button in the footer's right side, opposite 'Launch at login'.",
+    "AFTER — verified from the rendered DOM, not just by eye: the dialog's text reads 'Site Checker' / 'Version 0.0.0' / 'Created by Clint Parker' / 'clintparker.com' / 'Close', and all four captures completed with zero page errors and zero console errors. The narrow (480x320) capture confirms the modal still fits and stays legible at the window's resizable floor.",
+    "AFTER — the link was NOT clicked during capture. `open_url` is stubbed to a no-op recorder, so activating it would prove nothing about the real backend opener and would only risk closing the dialog mid-shot. QA (qa/qa-20260814-015212.md) is what exercises that path.",
+    "AFTER — the user's real sites.json was again never touched; re-verified after the run at mtime 2026-08-10 15:22, md5 27364d6a5bad0746748bf046ffc15ba8, byte-identical to the baseline reading. autostart.initialized left alone. The Vite dev server ran from the worktree, logged to /tmp (outside the checkout), and was killed afterwards with port 1420 confirmed free.",
+    "AFTER — no application code was modified by this step. The capture harness lives at /tmp/site-checker-shots-after-20260814/capture.mjs, outside the checkout, and nothing outside FEATURE_DIR/screenshots/ was committed."
+  ],
+  "app": {
+    "method": "vite-dev-server + playwright + stubbed __TAURI_INTERNALS__",
+    "url": "http://localhost:1420/",
+    "dev_server_log": "/tmp/site-checker-shots-vite-20260814.log",
+    "after_dev_server_log": "/tmp/site-checker-shots-vite-after-20260814.log",
+    "after_harness": "/tmp/site-checker-shots-after-20260814/capture.mjs",
+    "device_scale_factor": 1,
+    "frozen_now_ms": 1786665600000,
+    "backup": false,
+    "seed_sites": [
+      { "id": "shots-up", "url": "https://example.com", "label": "Example", "interval_secs": 60, "method_override": null },
+      { "id": "shots-down", "url": "https://down.invalid", "label": "Never Up", "interval_secs": 60, "method_override": null }
+    ],
+    "seed_statuses": [
+      { "id": "shots-up", "state": "up", "checked_at": 1786665588000, "reason": null },
+      { "id": "shots-down", "state": "down", "checked_at": 1786665588000, "reason": "DNS lookup failed" }
+    ],
+    "stubbed_commands": {
+      "list_sites": "seed_sites",
+      "get_warning": null,
+      "get_autostart": false,
+      "set_autostart": "echoes the requested value",
+      "open_url": "no-op (records the URL on window.__OPENED_URLS__)",
+      "plugin:app|version": "\"0.0.0\" — added in the after pass; getVersion() routes here, not through a project invoke"
+    },
+    "after_mode_hint": "Re-run the same harness against the implemented branch, capture main-window at both viewports, then add an `about-dialog` target showing the attribution and the clintparker.com link. The About dialog is an in-app <dialog>, so it is reachable in this browser harness by activating its trigger control — no native menu is involved.",
+    "after_mode_done": "Followed as written. `about-dialog` is reached by clicking #about-open and waiting for #about[open] plus the async version line to settle on 'Version 0.0.0'; no native menu was involved."
+  }
+}

@@ -78,3 +78,13 @@ export function setAutostart(enabled: boolean): Promise<boolean> {
 export function openUrl(url: string): Promise<void> {
   return invoke("open_url", { url });
 }
+
+// Not an `invoke` — Tauri's own API, and already permitted: the project grants
+// `core:default`, which includes `core:app:default`, which includes
+// `allow-version`. `src-tauri/capabilities/default.json` needs no entry for
+// this and should not grow one.
+//
+// Re-exported through here rather than imported directly by `about.ts` so the
+// boundary stays in one file and the existing `vi.mock("./api")` convention
+// keeps working.
+export { getVersion } from "@tauri-apps/api/app";

@@ -24,6 +24,7 @@ vi.mock("./api", () => ({
   updateSite: vi.fn(),
   deleteSite: vi.fn(),
   openUrl: vi.fn(() => Promise.resolve()),
+  getVersion: vi.fn(() => Promise.resolve("1.2.3")),
 }));
 
 const NOW = 1_700_000_000_000;
@@ -67,6 +68,14 @@ function mountFixture(): void {
       <button type="button" id="site-cancel" hidden>Cancel</button>
       <p id="site-error" hidden></p>
     </form>
+    <button type="button" id="about-open">About</button>
+    <dialog id="about">
+      <p class="about-name">Site Checker</p>
+      <p class="about-version" id="about-version">Version unavailable</p>
+      <p class="about-author">Created by Clint Parker</p>
+      <button type="button" data-open-url="https://clintparker.com">clintparker.com</button>
+      <button type="button" data-about-close>Close</button>
+    </dialog>
   `;
 }
 
@@ -120,6 +129,20 @@ describe("startup", () => {
     // happen either side of it.
     expect(document.querySelector("#site-submit")).not.toBeNull();
     expect(onSiteStatus).toHaveBeenCalled();
+  });
+
+  it("wires the About dialog", () => {
+    // `about.test.ts` proves the dialog's behaviour against the shipped markup;
+    // this proves `main()` actually mounts it, which is the one thing that file
+    // cannot see.
+    const dialog = document.querySelector<HTMLDialogElement>("#about")!;
+    expect(dialog.open).toBe(false);
+
+    document.querySelector<HTMLElement>("#about-open")!.click();
+    expect(dialog.open).toBe(true);
+
+    document.querySelector<HTMLElement>("[data-about-close]")!.click();
+    expect(dialog.open).toBe(false);
   });
 
   it("keeps a status that arrives before its site is known", () => {
